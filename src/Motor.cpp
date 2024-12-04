@@ -20,16 +20,17 @@ MotorControl::MotorControl(byte pin1, byte pin2, byte pwmPin)
     }
 
 // Method to set motor speed and direction
-void MotorControl::set_motor_PWM(int dutyCycle) {
-    dutyCycle = constrain(dutyCycle * driveDir, -PWMResolutionMaxValue, PWMResolutionMaxValue);
-    if (dutyCycle > 0) {
+void MotorControl::set_motor_PWM(double dutyCycle) {
+    int pwmValue = constrain(dutyCycle * driveDir, -PWMResolutionMaxValue, PWMResolutionMaxValue);
+    
+    if (pwmValue > 0) {            // Clockwise
         digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, HIGH);
-        analogWrite(motorPWM, abs(dutyCycle));
-    } else if (dutyCycle < 0) {
+        analogWrite(motorPWM, abs(pwmValue));
+    } else if (pwmValue < 0) {     // CCW
         digitalWrite(motorPin1, HIGH);
         digitalWrite(motorPin2, LOW);
-        analogWrite(motorPWM, abs(dutyCycle));
+        analogWrite(motorPWM, abs(pwmValue));
     } else {
         stop_motor();
     }
@@ -83,29 +84,38 @@ void test_all_wheel_motors(MotorControl* UL_Motor, MotorControl* UR_Motor, Motor
     BR_Motor->test_motor(BACKWARD);
 }
 
-void wheel_motor_instantiation() {
-    MotorControl UL_Motor(
-        MOTOR_UL_DIR_1,     // motor Dir Pin 1
-        MOTOR_UL_DIR_2,     // motor Dir Pin 2
-        MOTOR_UL_PWM        // motor Enable Pin
-    );
+void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
+    if (2*rampTime < duration) {
+        double duration;
+        double samplingPeriod;
+        double rampTime;
+        int maxIter = rampTime/samplingPeriod;
+        double pwmIncrement = maxPWM / maxIter;
+        double currentPWM = 0;
+        // Increasing Velocity
+        for (int i = 0; i < maxIter; i++) {
+            currentPWM += pwmIncrement;
+            UL_Motor->set_motor_PWM(currentPWM);
+            UR_Motor->set_motor_PWM(-currentPWM);
+            BL_Motor->set_motor_PWM(-currentPWM);
+            BR_Motor->set_motor_PWM(currentPWM);
+            delay(samplingPeriod);
+        }
 
-    MotorControl UR_Motor(
-        MOTOR_BL_DIR_1,     // motor Dir Pin 1
-        MOTOR_BL_DIR_2,     // motor Dir Pin 2
-        MOTOR_BL_PWM        // motor Enable Pin
-    );
+        // Maintain Max Velocity
+        delay(duration - 2*rampTime);
 
-    MotorControl BL_Motor(
-        MOTOR_BR_DIR_1,     // motor Dir Pin 1
-        MOTOR_BR_DIR_2,     // motor Dir Pin 2
-        MOTOR_BR_PWM        // motor Enable Pin
-    );
-
-    MotorControl BR_Motor(
-        MOTOR_UR_DIR_1,     // motor Dir Pin 1
-        MOTOR_UR_DIR_2,     // motor Dir Pin 2
-        MOTOR_UR_PWM        // motor Enable Pin
-    );
+        // Decreasing Velocity
+        for (int i = 0; i < maxIter; i++) {
+            currentPWM -= pwmIncrement;
+            UL_Motor->set_motor_PWM(currentPWM);
+            UR_Motor->set_motor_PWM(-currentPWM);
+            BL_Motor->set_motor_PWM(-currentPWM);
+            BR_Motor->set_motor_PWM(currentPWM);
+            delay(samplingPeriod);
+        }
+    }
+    else {
+        Serial.println("Ramp time should be 2x lesser than duration.");
+    }
 }
-
