@@ -34,4 +34,9 @@ void setup(){
 
 void loop(){
     test_all_wheel_motors(&UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    forward_hard_coded(50, 2.5, 7, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    Serial.println("Done testing.");
+    for(;;){
+        //Do nothing
+    }
 }
