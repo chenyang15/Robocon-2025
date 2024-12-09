@@ -42,9 +42,9 @@ void MotorControl::stop_motor() {
 // (Blocking) Method to test motor
 void MotorControl::test_motor(int direction) {
     // Array of PWM values to test
-    int pwmValues[] = {20, 40, 60, 80, 100};
+    int pwmValues[] = {10, 20, 30};
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 3; i++) {
         this->set_motor_PWM(pwmValues[i]); // Set motor PWM
         Serial.print("Testing motor with PWM: ");
         Serial.println(pwmValues[i]);     // Print current PWM value to monitor
@@ -82,10 +82,9 @@ void test_all_wheel_motors(MotorControl* UL_Motor, MotorControl* UR_Motor, Motor
 
 void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
     if (2*rampTime < duration) {
-        double duration;
-        double samplingPeriod;
-        double rampTime;
-        int maxIter = rampTime/samplingPeriod;
+        double samplingPeriod = 200;
+        double rampTimeMs = rampTime * 1000;
+        int maxIter = (int) (rampTimeMs/samplingPeriod);
         double pwmIncrement = maxPWM / maxIter;
         double currentPWM = 0;
         // Increasing Velocity
@@ -99,7 +98,7 @@ void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorCo
         }
 
         // Maintain Max Velocity
-        delay(duration - 2*rampTime);
+        delay(duration*1000 - 2*rampTimeMs);
 
         // Decreasing Velocity
         for (int i = 0; i < maxIter; i++) {

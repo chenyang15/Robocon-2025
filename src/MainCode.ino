@@ -26,13 +26,24 @@ MotorControl BR_Motor(
 
 
 void setup(){
+    pinMode(LED_PIN, OUTPUT);
 }
 
 void loop(){
-    test_all_wheel_motors(&UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
-    forward_hard_coded(50, 2.5, 7, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
-    Serial.println("Done testing.");
+    digitalWrite(LED_PIN, HIGH);
+    forward_hard_coded(60, 3, 10, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    digitalWrite(LED_PIN, LOW);
     for(;;){
         //Do nothing
     }
+    
+    for (;;){
+        Serial.println("Test");   
+        digitalWrite(LED_PIN, LOW);
+        delay(1000);
+        digitalWrite(LED_PIN, HIGH);
+        delay(1000);
+    }
+    test_all_wheel_motors(&UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    Serial.println("Done testing.");
 }

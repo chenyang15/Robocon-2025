@@ -1,17 +1,19 @@
 #pragma once
 // Warning: Do not use pin 0 and pin 1
 
-#define MOTOR_UL_PWM 3
-#define MOTOR_UL_DIR_1 2
+#define MOTOR_UL_PWM 5
+#define MOTOR_UL_DIR_1 4
 
-#define MOTOR_BL_PWM 6
-#define MOTOR_BL_DIR_1 10
+#define MOTOR_UR_PWM 3
+#define MOTOR_UR_DIR_1 2
 
-#define MOTOR_BR_PWM 9
-#define MOTOR_BR_DIR_1 13
+#define MOTOR_BL_PWM 9
+#define MOTOR_BL_DIR_1 8
 
-#define MOTOR_UR_PWM 5
-#define MOTOR_UR_DIR_1 7
+#define MOTOR_BR_PWM 6
+#define MOTOR_BR_DIR_1 7
+
+#define LED_PIN 13
 
 // Weight applied on wheels
 /* Procedure on value acquisition
