@@ -8,11 +8,10 @@
 #define PWMResolutionMaxValue 255
 
 // Constructor
-MotorControl::MotorControl(byte pin1, byte pin2, byte pwmPin)
-    : motorPin1(pin1), motorPin2(pin2), motorPWM(pwmPin){
+MotorControl::MotorControl(byte pin1, byte pwmPin)
+    : motorPin1(pin1), motorPWM(pwmPin){
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
-        pinMode(pin2, OUTPUT);
         pinMode(pwmPin, OUTPUT);
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
@@ -25,11 +24,9 @@ void MotorControl::set_motor_PWM(double dutyCycle) {
     
     if (pwmValue > 0) {            // Clockwise
         digitalWrite(motorPin1, LOW);
-        digitalWrite(motorPin2, HIGH);
         analogWrite(motorPWM, abs(pwmValue));
     } else if (pwmValue < 0) {     // CCW
         digitalWrite(motorPin1, HIGH);
-        digitalWrite(motorPin2, LOW);
         analogWrite(motorPWM, abs(pwmValue));
     } else {
         stop_motor();
@@ -39,7 +36,6 @@ void MotorControl::set_motor_PWM(double dutyCycle) {
 // Method to stop the motor
 void MotorControl::stop_motor() {
     digitalWrite(motorPin1, HIGH);
-    digitalWrite(motorPin2, HIGH);
     analogWrite(motorPWM, 0);
 }
 

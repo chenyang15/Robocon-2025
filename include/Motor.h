@@ -5,14 +5,13 @@ class MotorControl {
 private:
     // Motor pin variables
     byte motorPin1;
-    byte motorPin2;
     byte motorPWM;
     double load;
     int driveDir = 1;
 
 public:
     // Constructor
-    MotorControl(byte pin1, byte pin2, byte pwmPin);
+    MotorControl(byte pin1, byte pwmPin);
 
     // Methods
     void set_motor_PWM(double dutyCycle);
