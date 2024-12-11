@@ -29,29 +29,18 @@ void MotorControl::set_motor_PWM(double dutyCycle) {
         digitalWrite(motorPin1, HIGH);
         analogWrite(motorPWM, abs(pwmValue));
     } else {
-        stop_motor();
+        analogWrite(motorPWM, 0);
     }
-}
-
-// Method to stop the motor
-void MotorControl::stop_motor() {
-    digitalWrite(motorPin1, HIGH);
-    analogWrite(motorPWM, 0);
 }
 
 // (Blocking) Method to test motor
-void MotorControl::test_motor(int direction) {
-    // Array of PWM values to test
-    int pwmValues[] = {10, 20, 30};
+void MotorControl::stop_motor() {
+    this->set_motor_PWM(0); // Set motor PWM
+}
 
-    for (int i = 0; i < 3; i++) {
-        this->set_motor_PWM(pwmValues[i]); // Set motor PWM
-        Serial.print("Testing motor with PWM: ");
-        Serial.println(pwmValues[i]);     // Print current PWM value to monitor
-        delay(500);                       // Wait 500ms
-    }
-
-    // TODO: Implement max PWM rate of change (roc) to get smooth 0 to 100
+// (Blocking) Method to test motor
+void MotorControl::test_motor(double dutyCycle) {
+    this->set_motor_PWM(dutyCycle); // Set motor PWM
 }
 
 // Method to find max acceleration and then find the max the rate of change of PWM
@@ -69,21 +58,49 @@ inline int duty_cycle_to_PWM(double dutyCycle) {
 
 // Test sequentially of all wheel motors
 void test_all_wheel_motors(MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
-    // Note: Each function is blocking and takes 2.5s
-    UL_Motor->test_motor(FORWARD);
-    UL_Motor->test_motor(BACKWARD);
-    UR_Motor->test_motor(FORWARD);
-    UR_Motor->test_motor(BACKWARD);
-    BL_Motor->test_motor(FORWARD);
-    BL_Motor->test_motor(BACKWARD);
-    BR_Motor->test_motor(FORWARD);
-    BR_Motor->test_motor(BACKWARD);
+
 }
 
-void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
-    if (2*rampTime < duration) {
-        double samplingPeriod = 200;
-        double rampTimeMs = rampTime * 1000;
+void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
+   if (2*rampTimeMs < durationMs) {
+        double samplingPeriod = 50;
+        int maxIter = (int) (rampTimeMs/samplingPeriod);
+        double pwmIncrement = (maxPWM-initialPWM) / maxIter;
+        double currentPWM = initialPWM;
+        // Increasing Velocity
+        for (int i = 0; i < maxIter; i++) {
+            currentPWM += pwmIncrement;
+            UL_Motor->set_motor_PWM(currentPWM);
+            UR_Motor->set_motor_PWM(-currentPWM);
+            BL_Motor->set_motor_PWM(-currentPWM);
+            BR_Motor->set_motor_PWM(currentPWM);
+            delay(samplingPeriod);
+        }
+
+        // Maintain Max Velocity
+        delay(durationMs- 2*rampTimeMs);
+
+        // Decreasing Velocity
+        for (int i = 0; i < maxIter; i++) {
+            currentPWM -= pwmIncrement;
+            UL_Motor->set_motor_PWM(currentPWM);
+            UR_Motor->set_motor_PWM(-currentPWM);
+            BL_Motor->set_motor_PWM(-currentPWM);
+            BR_Motor->set_motor_PWM(currentPWM);
+            delay(samplingPeriod);
+        }
+        
+        UL_Motor->stop_motor();
+        UR_Motor->stop_motor();
+        BL_Motor->stop_motor();
+        BR_Motor->stop_motor();
+    }
+    else {
+        Serial.println("Ramp time should be 2x lesser than duration.");
+    }
+    /*
+    if (2*rampTimeMs < durationMs) {
+        double samplingPeriod = 50;
         int maxIter = (int) (rampTimeMs/samplingPeriod);
         double pwmIncrement = maxPWM / maxIter;
         double currentPWM = 0;
@@ -98,7 +115,7 @@ void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorCo
         }
 
         // Maintain Max Velocity
-        delay(duration*1000 - 2*rampTimeMs);
+        delay(durationMs- 2*rampTimeMs);
 
         // Decreasing Velocity
         for (int i = 0; i < maxIter; i++) {
@@ -113,4 +130,5 @@ void forward_hard_coded(double maxPWM, double rampTime, double duration, MotorCo
     else {
         Serial.println("Ramp time should be 2x lesser than duration.");
     }
+    */
 }

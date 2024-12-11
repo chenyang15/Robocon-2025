@@ -31,19 +31,10 @@ void setup(){
 
 void loop(){
     digitalWrite(LED_PIN, HIGH);
-    forward_hard_coded(60, 3, 10, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    forward_hard_coded(20, 100, 5000, 20000, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
     digitalWrite(LED_PIN, LOW);
-    for(;;){
-        //Do nothing
+    for(;;)
+    {
+        
     }
-    
-    for (;;){
-        Serial.println("Test");   
-        digitalWrite(LED_PIN, LOW);
-        delay(1000);
-        digitalWrite(LED_PIN, HIGH);
-        delay(1000);
-    }
-    test_all_wheel_motors(&UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
-    Serial.println("Done testing.");
 }
