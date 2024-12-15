@@ -4,10 +4,9 @@
 class MotorControl {
 private:
     // Motor pin variables
-    byte motorPin1;
-    byte motorPWM;
-    double load;
-    int driveDir = 1;
+    byte motorDirPin;
+    byte motorPwmPin;
+    double speed;
 
 public:
     // Constructor

@@ -5,14 +5,18 @@
 
 #define MAX_ACCELERATION 1000 // mm/s^2
 #define MAX_VELOCITY     1000 // mm/s
-#define PWMResolutionMaxValue 255
+
+#define PWM_RES 12
+#define PWM_MAX_BIT 4095
+#define PWM_FREQ 10000        // test 1-20kHz range
 
 // Constructor
 MotorControl::MotorControl(byte pin1, byte pwmPin)
-    : motorPin1(pin1), motorPWM(pwmPin){
+    : motorDirPin(pin1), motorPwmPin(pwmPin) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
-        pinMode(pwmPin, OUTPUT);
+        //pinMode(pwmPin, OUTPUT);
+        ledcSetup(pwmPin, PWM_FREQ, PWM_RES);
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
         // Note: Requires PWM to speed mapping
@@ -20,16 +24,20 @@ MotorControl::MotorControl(byte pin1, byte pwmPin)
 
 // Method to set motor speed and direction
 void MotorControl::set_motor_PWM(double dutyCycle) {
-    int pwmValue = constrain(dutyCycle * driveDir, -PWMResolutionMaxValue, PWMResolutionMaxValue);
+    int pwmValue = constrain(dutyCycle, -PWM_MAX_BIT, PWM_MAX_BIT);
     
-    if (pwmValue > 0) {            // Clockwise
-        digitalWrite(motorPin1, LOW);
-        analogWrite(motorPWM, abs(pwmValue));
+    if (pwmValue > 0) {            // CW
+        digitalWrite(motorDirPin, LOW);
+        ledcWrite(motorPwmPin, abs(pwmValue));
+        //analogWrite(motorPwmPin, abs(pwmValue));
+
     } else if (pwmValue < 0) {     // CCW
-        digitalWrite(motorPin1, HIGH);
-        analogWrite(motorPWM, abs(pwmValue));
+        digitalWrite(motorDirPin, HIGH);
+        ledcWrite(motorPwmPin, abs(pwmValue));
+        // analogWrite(motorPwmPin, abs(pwmValue));
     } else {
-        analogWrite(motorPWM, 0);
+        ledcWrite(motorPwmPin, abs(pwmValue));
+        // analogWrite(motorPwmPin, 0);
     }
 }
 
@@ -53,7 +61,7 @@ void MotorControl::find_max_pwm_roc() {
 
 // Converts unit of speed from duty cycle to PWM value
 inline int duty_cycle_to_PWM(double dutyCycle) {
-    return (int) ((dutyCycle * PWMResolutionMaxValue / 100.0) + 0.5);
+    return (int) ((dutyCycle * PWM_MAX_BIT / 100.0) + 0.5);
 }
 
 // Test sequentially of all wheel motors
