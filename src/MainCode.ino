@@ -1,8 +1,7 @@
 #include <Arduino.h>
-#include "Motor.h"
 #include "PinAssignment.h"
+#include "Motor.h"
 #include "Utils.h"
-
 
 MotorControl UL_Motor(
     MOTOR_UL_DIR_1,     // motor Dir Pin 1
@@ -24,6 +23,8 @@ MotorControl BR_Motor(
     MOTOR_UR_PWM        // motor Enable Pin
 );
 
+MotorControl wheelMotors [4] = {UL_Motor, UR_Motor, BL_Motor, BR_Motor};
+double wheelMotorPWMs [4] = {0, 0, 0, 0};
 
 void setup(){
     pinMode(LED_PIN, OUTPUT);
@@ -31,10 +32,9 @@ void setup(){
 
 void loop(){
     digitalWrite(LED_PIN, HIGH);
-    forward_hard_coded(20, 100, 5000, 20000, &UL_Motor, &UR_Motor, &BL_Motor, &BR_Motor);
+    ramp_wheel_PWM(wheelMotors, wheelMotorPWMs);
+    //forward_hard_coded(20, 100, 5000, 20000, wheelMotors);
     digitalWrite(LED_PIN, LOW);
-    for(;;)
-    {
-        
-    }
+    for(;;);
 }
+
