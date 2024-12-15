@@ -1,6 +1,5 @@
-using byte = uint8_t;
+#pragma once
 
 enum Direction : unsigned char {
     FORWARD, BACKWARD, LEFT, RIGHT
 };
-
