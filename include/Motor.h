@@ -14,7 +14,7 @@ private:
     // Motor pin variables
     byte motorDirPin;
     byte motorPwmPin;
-    double speed;
+    double currentDutyCycle; // in bit
 
 public:
     // Constructor
