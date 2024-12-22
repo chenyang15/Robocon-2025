@@ -24,7 +24,7 @@ public:
     void set_motor_PWM(double dutyCycle);
     void stop_motor();
     void test_motor(double dutyCycle);
-    void _ramp_PWM(double dutyCycle);
+    void _ramp_PWM(double dutyCycle, double increment);
 };
 
 

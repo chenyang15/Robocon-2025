@@ -48,12 +48,12 @@ void MotorControl::test_motor(double dutyCycle) {
 }
 
 // Do not use function by itself, see example function ramp_wheel_PWM for usage
-void MotorControl::_ramp_PWM(double dutyCycle) {
-    if (dutyCycle - currentDutyCycle > PWM_DUTY_CYCLE_INCREMENT) {
-        this->set_motor_PWM(dutyCycle + PWM_DUTY_CYCLE_INCREMENT);
+void MotorControl::_ramp_PWM(double dutyCycle, double increment) {
+    if (dutyCycle - currentDutyCycle > increment) {
+        this->set_motor_PWM(dutyCycle + increment);
     }
-    else if (dutyCycle - currentDutyCycle < -PWM_DUTY_CYCLE_INCREMENT) {
-        this->set_motor_PWM(dutyCycle - PWM_DUTY_CYCLE_INCREMENT);
+    else if (dutyCycle - currentDutyCycle < -increment) {
+        this->set_motor_PWM(dutyCycle - increment);
     }
     else {
         this->set_motor_PWM(dutyCycle);
@@ -72,25 +72,42 @@ void MotorControl::find_max_pwm_roc() {
 // Currently open loop
 void ramp_wheel_PWM(MotorControl (&WheelMotors) [4], double (&wheelMotorPWMs) [4]) {
     // Setting up references
-    MotorControl& UL_Motor = WheelMotors[0];
-    MotorControl& UR_Motor = WheelMotors[1];
-    MotorControl& BL_Motor = WheelMotors[2];
-    MotorControl& BR_Motor = WheelMotors[3];
-    double& ULPWM = wheelMotorPWMs[0];
-    double& URPWM = wheelMotorPWMs[1];
-    double& BLPWM = wheelMotorPWMs[2];
-    double& BRPWM = wheelMotorPWMs[3];
-
+    static MotorControl& UL_Motor = WheelMotors[0];
+    static MotorControl& UR_Motor = WheelMotors[1];
+    static MotorControl& BL_Motor = WheelMotors[2];
+    static MotorControl& BR_Motor = WheelMotors[3];
+    static double& ULPWM = wheelMotorPWMs[0];
+    static double& URPWM = wheelMotorPWMs[1];
+    static double& BLPWM = wheelMotorPWMs[2];
+    static double& BRPWM = wheelMotorPWMs[3];
+    
+    
     static unsigned long previousTime = 0;
     unsigned long currentTime = millis();
+
+
     if (currentTime-previousTime >= MOTOR_ACTUATION_PERIOD) {
-        previousTime = currentTime; // Update current time
+        //get velocity of each motor
+        
+        //
+
         // Actuate motor using ramp
-        UL_Motor._ramp_PWM(ULPWM);
-        UR_Motor._ramp_PWM(URPWM);
-        BL_Motor._ramp_PWM(BLPWM);
-        BR_Motor._ramp_PWM(BRPWM);
+        previousTime = currentTime; // Update current time
+        UL_Motor._ramp_PWM(ULPWM, PWM_DUTY_CYCLE_INCREMENT);
+        UR_Motor._ramp_PWM(URPWM, PWM_DUTY_CYCLE_INCREMENT);
+        BL_Motor._ramp_PWM(BLPWM, PWM_DUTY_CYCLE_INCREMENT);
+        BR_Motor._ramp_PWM(BRPWM, PWM_DUTY_CYCLE_INCREMENT);
     }
+    
+    // if (currentTime-previousTime >= MOTOR_ACTUATION_PERIOD) {
+    //     previousTime = currentTime; // Update current time
+    //     // Actuate motor using ramp
+    //     UL_Motor._ramp_PWM(ULPWM, PWM_DUTY_CYCLE_INCREMENT);
+    //     UR_Motor._ramp_PWM(URPWM, PWM_DUTY_CYCLE_INCREMENT);
+    //     BL_Motor._ramp_PWM(BLPWM, PWM_DUTY_CYCLE_INCREMENT);
+    //     BR_Motor._ramp_PWM(BRPWM, PWM_DUTY_CYCLE_INCREMENT);
+    // }
+
 }
 
 // Converts unit of speed from duty cycle to PWM value
