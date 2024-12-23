@@ -2,8 +2,9 @@
 #include "PinAssignment.h"
 #include "Motor.h"
 #include "Utils.h"
+#include "Timing.h"
 
-// Constructor
+// Constructor for class MotorControl
 MotorControl::MotorControl(byte pin1, byte pwmPin)
     : motorDirPin(pin1), motorPwmPin(pwmPin) {
         // Pin Initialisation
@@ -60,15 +61,6 @@ void MotorControl::_ramp_PWM(double dutyCycle, double increment) {
     }
 }
 
-
-// Method to find max acceleration and then find the max the rate of change of PWM
-/*
-void MotorControl::find_max_pwm_roc() {
-
-
-}
-*/
-
 // Currently open loop
 void ramp_wheel_PWM(MotorControl (&WheelMotors) [4], double (&wheelMotorPWMs) [4]) {
     // Setting up references
@@ -86,7 +78,7 @@ void ramp_wheel_PWM(MotorControl (&WheelMotors) [4], double (&wheelMotorPWMs) [4
     unsigned long currentTime = millis();
 
 
-    if (currentTime-previousTime >= MOTOR_ACTUATION_PERIOD) {
+    if (currentTime-previousTime >= MOTOR_WHEEL_ACTUATION_PERIOD) {
         //get velocity of each motor
         
         //
@@ -99,7 +91,7 @@ void ramp_wheel_PWM(MotorControl (&WheelMotors) [4], double (&wheelMotorPWMs) [4
         BR_Motor._ramp_PWM(BRPWM, PWM_DUTY_CYCLE_INCREMENT);
     }
     
-    // if (currentTime-previousTime >= MOTOR_ACTUATION_PERIOD) {
+    // if (currentTime-previousTime >= MOTOR_WHEEL_ACTUATION_PERIOD) {
     //     previousTime = currentTime; // Update current time
     //     // Actuate motor using ramp
     //     UL_Motor._ramp_PWM(ULPWM, PWM_DUTY_CYCLE_INCREMENT);
@@ -127,7 +119,7 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
     MotorControl& BL_Motor = wheelMotors[2];
     MotorControl& BR_Motor = wheelMotors[3];
     if (2*rampTimeMs < durationMs) {
-        int maxIter = (int) (rampTimeMs/MOTOR_ACTUATION_PERIOD);
+        int maxIter = (int) (rampTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
         double pwmIncrement = (maxPWM-initialPWM) / maxIter;
         double currentPWM = initialPWM;
         // Increasing Velocity
@@ -137,7 +129,7 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
             UR_Motor.set_motor_PWM(-currentPWM);
             BL_Motor.set_motor_PWM(-currentPWM);
             BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_ACTUATION_PERIOD);
+            delay(MOTOR_WHEEL_ACTUATION_PERIOD);
         }
 
         // Maintain Max Velocity
@@ -150,7 +142,7 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
             UR_Motor.set_motor_PWM(-currentPWM);
             BL_Motor.set_motor_PWM(-currentPWM);
             BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_ACTUATION_PERIOD);
+            delay(MOTOR_WHEEL_ACTUATION_PERIOD);
         }
         
         UL_Motor.stop_motor();

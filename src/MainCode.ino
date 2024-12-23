@@ -1,16 +1,9 @@
 #include <Arduino.h>
-
 #include "PinAssignment.h"
 #include "Motor.h"
 #include "Utils.h"
 #include "Timing.h"
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
-
-// Total encoders are limited up to 8
-ESP32Encoder UL_Encoder;
-ESP32Encoder UR_Encoder;
-ESP32Encoder BL_Encoder;
-ESP32Encoder BR_Encoder;
 
 MotorControl UL_Motor(
     MOTOR_UL_DIR_1,     // motor Dir Pin 1
@@ -39,7 +32,10 @@ void setup(){
     Serial.begin(9600);
     pinMode(LED_PIN, OUTPUT);
 
-    timing_setup_check();
+    if(!timing_setup_check()){
+        Serial.print("Exiting program.\n");
+        stop_program();
+    }
     
     // Encoder setup
    	// Enable the weak pull down resistors
@@ -61,8 +57,7 @@ void loop(){
 
     // Main loop setup
     uint32_t loopCount = 0;
-    int maxPeriod = maxValue(MOTOR_ACTUATION_PERIOD, 1, 2, 3); // Substitute 1, 2, 3, and Add more values for polling tasks if needed
-    int maxLoopCount = maxPeriod / MAIN_LOOP_PERIOD;
+    int maxPeriod = maxValue(MOTOR_WHEEL_ACTUATION_PERIOD, 1, 2, 3); // Substitute 1, 2, 3, and Add more values for polling tasks if needed
     // Main loop
     for(;;){
         unsigned long previousTime = 0;
@@ -71,12 +66,8 @@ void loop(){
             previousTime = currentTime;
             loopCount++;
             if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
-                // Set sampling rate of velocity calculation to be the same as the motor actuation period (may need to be separate)
-                (int32_t)UL_Encoder.getCount();
-                (int32_t)UR_Encoder.getCount();
-                (int32_t)BL_Encoder.getCount();
-                (int32_t)BR_Encoder.getCount();
-                // Find velocity of each motor
+                
+                
             }
 
             

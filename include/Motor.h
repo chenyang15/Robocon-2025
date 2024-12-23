@@ -1,4 +1,5 @@
 #pragma once
+#include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 
 #define MAX_ACCELERATION 9999999 // mm/s^2
 #define MAX_VELOCITY     9999999 // mm/s
@@ -6,7 +7,6 @@
 #define PWM_RES 12
 #define PWM_MAX_BIT 4095
 #define PWM_FREQ 10000              // test 1-20kHz range
-#define MOTOR_ACTUATION_PERIOD 50
 #define PWM_DUTY_CYCLE_INCREMENT 0.8           // for motor actuation period of 50ms
 
 class MotorControl {
@@ -27,6 +27,21 @@ public:
     void _ramp_PWM(double dutyCycle, double increment);
 };
 
+// Subclass of MotorControl
+class MotorControlWithEncoder : public MotorControl {
+private:
+    ESP32Encoder Encoder;
+    int currentEncoderCount;
+    int previousEncoderCount;
+    double ticksPerSample;
+public:
+    // Constructor
+    MotorControlWithEncoder(byte pin1, byte pwmPin);
+
+    // Methods
+    void update_tick_velocity();
+
+};
 
 
 inline int duty_cycle_to_PWM(double dutyCycle);
