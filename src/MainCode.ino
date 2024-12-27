@@ -5,28 +5,14 @@
 #include "Timing.h"
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 
-MotorControl UL_Motor(
-    MOTOR_UL_DIR_1,     // motor Dir Pin 1
-    MOTOR_UL_PWM        // motor Enable Pin
-);
+/* To-do:
+ * - Test encoder signals
+ * - PS4 controller left and right analog stick mapping using BluePad32.h
+ * - For limiting motor current, find optimum max pwm increment per actuation period 
+*/
 
-MotorControl UR_Motor(
-    MOTOR_BL_DIR_1,     // motor Dir Pin 1
-    MOTOR_BL_PWM        // motor Enable Pin
-);
-
-MotorControl BL_Motor(
-    MOTOR_BR_DIR_1,     // motor Dir Pin 1
-    MOTOR_BR_PWM        // motor Enable Pin
-);
-
-MotorControl BR_Motor(
-    MOTOR_UR_DIR_1,     // motor Dir Pin 1
-    MOTOR_UR_PWM        // motor Enable Pin
-);
-
-MotorControl wheelMotors [4] = {UL_Motor, UR_Motor, BL_Motor, BR_Motor};
-double wheelMotorPWMs [4] = {0, 0, 0, 0};
+// Initialize global variables
+#include "Globals.h"      // Note: Variables in here can be accessed anywhere in main file
 
 void setup(){
     Serial.begin(9600);
@@ -49,29 +35,44 @@ void setup(){
 
 void loop(){
     digitalWrite(LED_PIN, HIGH);
-    ramp_wheel_PWM(wheelMotors, wheelMotorPWMs);
-    //forward_hard_coded(20, 100, 5000, 20000, wheelMotors);
-    digitalWrite(LED_PIN, LOW);
-    
-    stop_program();
 
     // Main loop setup
     uint32_t loopCount = 0;
-    int maxPeriod = maxValue(MOTOR_WHEEL_ACTUATION_PERIOD, 1, 2, 3); // Substitute 1, 2, 3, and Add more values for polling tasks if needed
     // Main loop
     for(;;){
         unsigned long previousTime = 0;
         unsigned long currentTime = millis();
+        
         if (currentTime-previousTime >= MAIN_LOOP_PERIOD){
             previousTime = currentTime;
-            loopCount++;
+            // Wheel motors - Get encoder count
+            if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
+                // Update tick velocity
+                UL_Motor.update_tick_velocity();
+                UR_Motor.update_tick_velocity();
+                BL_Motor.update_tick_velocity();
+                BR_Motor.update_tick_velocity();
+            }
+
+            // Wheel motors - Actuation
             if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
-                
-                
+                // TODO: Update setpoint of PID (get input from joystick)
+                // May want the update to be in a different if statement
+                stop_program(); //placeholder. refer TODO
+
+                // Calculate PD PWM output of each wheel's motor
+                wheelMotorInputs[0] = UL_Motor.PID.compute(UL_Motor.ticksPerSample);
+                wheelMotorInputs[1] = UR_Motor.PID.compute(UR_Motor.ticksPerSample);
+                wheelMotorInputs[2] = BL_Motor.PID.compute(BL_Motor.ticksPerSample);
+                wheelMotorInputs[3] = BR_Motor.PID.compute(BR_Motor.ticksPerSample);
+                // Actuate Motor
+                ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
             }
 
             
+            loopCount++;
         }
+    digitalWrite(LED_PIN, LOW);
     }
 }
 

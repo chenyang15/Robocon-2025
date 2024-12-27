@@ -7,16 +7,18 @@
 // Warning: Total encoders are limited up to 8
 
 // Constructor for child class of MotorControl
-MotorControlWithEncoder::MotorControlWithEncoder(byte pin1, byte pwmPin)
-    : MotorControl(pin1, pwmPin) {
-        ESP32Encoder Encoder;
-        currentEncoderCount = 0;
-        previousEncoderCount = 0;
-        ticksPerSample = 0;
-    }
+MotorWithEncoder::MotorWithEncoder(byte pin1, byte pwmPin, byte encoderA, byte encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin, double outputMax)
+    : Motor(pin1, pwmPin, maxPwmIncrement),           // Motor setup (constructor from parent class)
+    currentEncoderCount(0), previousEncoderCount(0), ticksPerSample(0), // Encoder variables initialization
+    Encoder(true),                          // Create encoder class
+    PID(kp, ki, kd, outputMin, outputMax)   // Create PID controller class
+    {
+    // Encoder setup
+    Encoder.attachFullQuad(encoderA, encoderB);
+}
 
-void MotorControlWithEncoder::update_tick_velocity() {
-    previousEncoderCount = currentEncoderCount;
-    currentEncoderCount = (int)Encoder.getCount();
+void MotorWithEncoder::update_tick_velocity() {
+    this->previousEncoderCount = this->currentEncoderCount;
+    this->currentEncoderCount = (int)Encoder.getCount();
     this->ticksPerSample = (currentEncoderCount - previousEncoderCount) / MOTOR_WHEEL_ENCODER_PERIOD;
 }

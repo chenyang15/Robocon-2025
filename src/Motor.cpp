@@ -5,20 +5,19 @@
 #include "Timing.h"
 
 // Constructor for class MotorControl
-MotorControl::MotorControl(byte pin1, byte pwmPin)
-    : motorDirPin(pin1), motorPwmPin(pwmPin) {
+Motor::Motor(byte pin1, byte pwmPin, double maxPwmIncrement)
+    : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), currentDutyCycle(0.0) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
         //pinMode(pwmPin, OUTPUT);
         ledcSetup(pwmPin, PWM_FREQ, PWM_RES);
-        currentDutyCycle = 0;
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
         // Note: Requires PWM to speed mapping
     }
 
 // Method to set motor speed and direction
-void MotorControl::set_motor_PWM(double dutyCycle) {
+void Motor::set_motor_PWM(double dutyCycle) {
     int pwmValue = (int) dutyCycle * PWM_MAX_BIT + 0.5;
     pwmValue = constrain(dutyCycle, -PWM_MAX_BIT, PWM_MAX_BIT);
     
@@ -35,71 +34,68 @@ void MotorControl::set_motor_PWM(double dutyCycle) {
         ledcWrite(motorPwmPin, abs(pwmValue));
         // analogWrite(motorPwmPin, 0);
     }
-    // WARNING: This is open loop, and an assumption that actuation is equals to input
-    currentDutyCycle = dutyCycle;
 }
 
-void MotorControl::stop_motor() {
+void Motor::stop_motor() {
     this->set_motor_PWM(0); // Set motor PWM
+    this->currentDutyCycle = 0;
 }
 
 // (Blocking) Method to test motor
-void MotorControl::test_motor(double dutyCycle) {
+void Motor::test_motor(double dutyCycle) {
     this->set_motor_PWM(dutyCycle); // Set motor PWM
 }
 
 // Do not use function by itself, see example function ramp_wheel_PWM for usage
-void MotorControl::_ramp_PWM(double dutyCycle, double increment) {
-    if (dutyCycle - currentDutyCycle > increment) {
-        this->set_motor_PWM(dutyCycle + increment);
+void Motor::_ramp_PWM(double motorInput) {
+    // Find current unclamped increment from controller output
+    double unclampedIncrement = motorInput - currentDutyCycle;
+    
+    // Limit Increment
+    double increment;
+    if (unclampedIncrement > this->maxPwmIncrement) {
+        increment = maxPwmIncrement;
     }
-    else if (dutyCycle - currentDutyCycle < -increment) {
-        this->set_motor_PWM(dutyCycle - increment);
+    else if (unclampedIncrement < this->maxPwmIncrement) {
+        increment = -maxPwmIncrement;
     }
     else {
-        this->set_motor_PWM(dutyCycle);
+        increment = unclampedIncrement;
     }
+
+    // Increment Duty Cycle of Motor
+    double dutyCycle = currentDutyCycle + increment;
+    this->set_motor_PWM(dutyCycle);
+    
+    // WARNING: This is an assumption that actuation is equals to input after an actuation period
+    // TODO: May requires Speed to PWM mapping in order to properly limit increment and get rid of this assumption.
+    currentDutyCycle = dutyCycle;
 }
 
 // Currently open loop
-void ramp_wheel_PWM(MotorControl (&WheelMotors) [4], double (&wheelMotorPWMs) [4]) {
+/**
+ * Accepts PWM input from controller output to actuate wheel motors
+ * @param (&WheelMotors)[4] An array of wheel motor classes passed by reference.
+ * @param wheelMotorPWMs PWM output of each wheel motors from the PD controller.
+ * @return none
+ * @warning Do not use this function for other motors other than wheel motors.
+ * @note Example use case - ramp_wheel_PWM(wheelMotors, wheelMotorPWMs);
+ */
+void ramp_wheel_PWM(MotorWithEncoder (&WheelMotors) [4], double (&wheelMotorInputs) [4]) {
     // Setting up references
-    static MotorControl& UL_Motor = WheelMotors[0];
-    static MotorControl& UR_Motor = WheelMotors[1];
-    static MotorControl& BL_Motor = WheelMotors[2];
-    static MotorControl& BR_Motor = WheelMotors[3];
-    static double& ULPWM = wheelMotorPWMs[0];
-    static double& URPWM = wheelMotorPWMs[1];
-    static double& BLPWM = wheelMotorPWMs[2];
-    static double& BRPWM = wheelMotorPWMs[3];
+    static MotorWithEncoder& UL_Motor = WheelMotors[0];
+    static MotorWithEncoder& UR_Motor = WheelMotors[1];
+    static MotorWithEncoder& BL_Motor = WheelMotors[2];
+    static MotorWithEncoder& BR_Motor = WheelMotors[3];
+    static double& ULPWM = wheelMotorInputs[0];
+    static double& URPWM = wheelMotorInputs[1];
+    static double& BLPWM = wheelMotorInputs[2];
+    static double& BRPWM = wheelMotorInputs[3];
     
-    
-    static unsigned long previousTime = 0;
-    unsigned long currentTime = millis();
-
-
-    if (currentTime-previousTime >= MOTOR_WHEEL_ACTUATION_PERIOD) {
-        //get velocity of each motor
-        
-        //
-
-        // Actuate motor using ramp
-        previousTime = currentTime; // Update current time
-        UL_Motor._ramp_PWM(ULPWM, PWM_DUTY_CYCLE_INCREMENT);
-        UR_Motor._ramp_PWM(URPWM, PWM_DUTY_CYCLE_INCREMENT);
-        BL_Motor._ramp_PWM(BLPWM, PWM_DUTY_CYCLE_INCREMENT);
-        BR_Motor._ramp_PWM(BRPWM, PWM_DUTY_CYCLE_INCREMENT);
-    }
-    
-    // if (currentTime-previousTime >= MOTOR_WHEEL_ACTUATION_PERIOD) {
-    //     previousTime = currentTime; // Update current time
-    //     // Actuate motor using ramp
-    //     UL_Motor._ramp_PWM(ULPWM, PWM_DUTY_CYCLE_INCREMENT);
-    //     UR_Motor._ramp_PWM(URPWM, PWM_DUTY_CYCLE_INCREMENT);
-    //     BL_Motor._ramp_PWM(BLPWM, PWM_DUTY_CYCLE_INCREMENT);
-    //     BR_Motor._ramp_PWM(BRPWM, PWM_DUTY_CYCLE_INCREMENT);
-    // }
-
+    UL_Motor._ramp_PWM(ULPWM);
+    UR_Motor._ramp_PWM(URPWM);
+    BL_Motor._ramp_PWM(BLPWM);
+    BR_Motor._ramp_PWM(BRPWM);
 }
 
 // Converts unit of speed from duty cycle to PWM value
@@ -108,16 +104,16 @@ inline int duty_cycle_to_PWM(double dutyCycle) {
 }
 
 // Test sequentially of all wheel motors
-void test_all_wheel_motors(MotorControl* UL_Motor, MotorControl* UR_Motor, MotorControl* BL_Motor, MotorControl* BR_Motor) {
+void test_all_wheel_motors(Motor* UL_Motor, Motor* UR_Motor, Motor* BL_Motor, Motor* BR_Motor) {
 
 }
 
-void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, MotorControl (&wheelMotors)[4]) {
+void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, Motor (&wheelMotors)[4]) {
     // Setting up references
-    MotorControl& UL_Motor = wheelMotors[0];
-    MotorControl& UR_Motor = wheelMotors[1];
-    MotorControl& BL_Motor = wheelMotors[2];
-    MotorControl& BR_Motor = wheelMotors[3];
+    Motor& UL_Motor = wheelMotors[0];
+    Motor& UR_Motor = wheelMotors[1];
+    Motor& BL_Motor = wheelMotors[2];
+    Motor& BR_Motor = wheelMotors[3];
     if (2*rampTimeMs < durationMs) {
         int maxIter = (int) (rampTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
         double pwmIncrement = (maxPWM-initialPWM) / maxIter;
