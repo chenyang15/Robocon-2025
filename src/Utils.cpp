@@ -13,14 +13,3 @@ int serialPrintf(const char *format, ...) {
 void stop_program(){
     for(;;);
 }
-
-template <typename T>
-T maxValue(T value) {
-    return value;  // Base case: single value
-}
-
-template <typename T, typename... Args>
-T maxValue(T first, Args... rest) {
-    T maxRest = maxValue(rest...);  // Recursively find max of the rest
-    return (first > maxRest) ? first : maxRest;
-}
