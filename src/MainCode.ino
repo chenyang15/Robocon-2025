@@ -18,7 +18,7 @@ void setup(){
     Serial.begin(9600);
     pinMode(LED_PIN, OUTPUT);
 
-    if(!timing_setup_check()){
+    if(!timing_setup_check()) {
         Serial.print("Exiting program.\n");
         stop_program();
     }
@@ -39,11 +39,11 @@ void loop(){
     // Main loop setup
     uint32_t loopCount = 0;
     // Main loop
-    for(;;){
+    for(;;) {
         unsigned long previousTime = 0;
         unsigned long currentTime = millis();
         
-        if (currentTime-previousTime >= MAIN_LOOP_PERIOD){
+        if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
             previousTime = currentTime;
             // Wheel motors - Get encoder count
             if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
