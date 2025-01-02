@@ -1,4 +1,6 @@
-#include <Arduino.h>
+// #if defined(PLATFORMIO)
+// #include <Arduino.h>
+// #endif
 #include "PinAssignment.h"
 #include "Motor.h"
 #include "Utils.h"

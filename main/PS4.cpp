@@ -1,5 +1,7 @@
+// #if defined(PLATFORMIO)
+// #include <Arduino.h>
+// #endif
 #include "PS4.h"
-#include <Arduino.h>
 #include "math.h"
 
 // Function to convert left and right analog stick of PS4 to velocity for each wheel motors

@@ -1,7 +1,9 @@
 #pragma once
+// #if defined(PLATFORMIO)
+// #include <Arduino.h>
+// #endif
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 #include "PID.h"
-#include <Arduino.h>
 
 #define MAX_ACCELERATION 9999999 // mm/s^2
 #define MAX_VELOCITY     9999999 // mm/s
