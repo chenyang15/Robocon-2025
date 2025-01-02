@@ -1,6 +1,4 @@
-// #if defined(PLATFORMIO)
-// #include <Arduino.h>
-// #endif
+#include <Arduino.h>
 #include "PinAssignment.h"
 #include "Motor.h"
 #include "Utils.h"
@@ -149,7 +147,7 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
         BR_Motor.stop_motor();
     }
     else {
-        Serial.println("Ramp time should be 2x lesser than duration.");
+        Serial.print("Ramp time should be 2x lesser than duration.\n");
     }
     /*
     if (2*rampTimeMs < durationMs) {

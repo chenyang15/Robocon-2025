@@ -1,6 +1,4 @@
-// #if defined(PLATFORMIO)
-// #include <Arduino.h>
-// #endif
+#include <Arduino.h>
 #include "PS4.h"
 #include "math.h"
 

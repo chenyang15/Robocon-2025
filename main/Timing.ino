@@ -1,6 +1,4 @@
-// #if defined(PLATFORMIO)
-// #include <Arduino.h>
-// #endif
+#include <Arduino.h>
 #include "Timing.h"
 
 int timing_setup_check() {

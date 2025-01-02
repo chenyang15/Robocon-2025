@@ -1,7 +1,5 @@
 #pragma once
-// #if defined(PLATFORMIO)
-// #include <Arduino.h>
-// #endif
+#include <Arduino.h>
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 #include "PID.h"
 
