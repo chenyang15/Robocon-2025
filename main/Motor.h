@@ -16,12 +16,14 @@ private:
     // Motor pin variables
     byte motorDirPin;
     byte motorPwmPin;
-    double maxPwmIncrement;     // Range: 0~100
     double currentDutyCycle;    // Duty cycle (Range: 0~100)
 
 public:
     // Constructor
     Motor(byte pin1, byte pwmPin, double maxPwmIncrement);
+
+    // Members
+    double maxPwmIncrement;     // Range: 0~100
 
     // Methods
     void set_motor_PWM(double dutyCycle);
@@ -52,3 +54,4 @@ inline int duty_cycle_to_PWM(double dutyCycle);
 void test_all_wheel_motors(Motor* UL_motor, Motor* UR_motor, Motor* BL_motor, Motor* BR_motor);
 void forward_hard_coded(double initialPWM, double maxPWM, double rampTime, double duration, Motor wheelMotors[4]);
 void ramp_wheel_PWM(MotorWithEncoder (&wheelMotors) [4], double (&wheelMotorPWMs) [4]);
+void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorInputs) [4], MotorWithEncoder& wheelMotor);

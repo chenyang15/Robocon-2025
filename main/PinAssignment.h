@@ -4,22 +4,22 @@
 #define MOTOR_UL_PWM 5
 #define MOTOR_UL_DIR_1 4
 #define MOTOR_UL_ENCODER_A 0
-#define MOTOR_UL_ENCODER_B 0
+#define MOTOR_UL_ENCODER_B 1
 
 #define MOTOR_UR_PWM 3
 #define MOTOR_UR_DIR_1 2
-#define MOTOR_UR_ENCODER_A 0
-#define MOTOR_UR_ENCODER_B 0
+#define MOTOR_UR_ENCODER_A 10
+#define MOTOR_UR_ENCODER_B 11
 
 #define MOTOR_BL_PWM 9
 #define MOTOR_BL_DIR_1 8
-#define MOTOR_BL_ENCODER_A 0
-#define MOTOR_BL_ENCODER_B 0
+#define MOTOR_BL_ENCODER_A 12
+#define MOTOR_BL_ENCODER_B 14
 
 #define MOTOR_BR_PWM 6
 #define MOTOR_BR_DIR_1 7
-#define MOTOR_BR_ENCODER_A 0
-#define MOTOR_BR_ENCODER_B 0
+#define MOTOR_BR_ENCODER_A 15
+#define MOTOR_BR_ENCODER_B 16
 
 #define LED_PIN 13
 

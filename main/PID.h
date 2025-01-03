@@ -25,7 +25,7 @@ public:
     inline void setSetpoint(double target);
 
     // Compute the PID output
-    double compute(double currentValue);
+    double compute(double feedforwardInput, double currentValue);
 
     // Reset the PID controller
     inline void reset();

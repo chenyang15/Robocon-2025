@@ -1,6 +1,8 @@
+#pragma once
 #include <Arduino.h>
 #include "PinAssignment.h"
 #include "Motor.h"
+#include <Bluepad32.h>
 
 /*========================================================================================
 =                                WHEEL MOTOR GLOBAL VARIABLES                            =
@@ -14,7 +16,9 @@ MotorWithEncoder UL_Motor(
     1,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
-    0                   // Kd
+    0,                  // Kd
+    -PWM_MAX_BIT,       // Output Min Value
+    PWM_MAX_BIT         // Output Max Value
 );
 
 // Upper Right Wheel Motor
@@ -26,7 +30,9 @@ MotorWithEncoder UR_Motor(
     1,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
-    0                   // Kd
+    0,                  // Kd
+    -PWM_MAX_BIT,       // Output Min Value
+    PWM_MAX_BIT         // Output Max Value
 );
 
 // Bottom Left Wheel Motor
@@ -38,7 +44,9 @@ MotorWithEncoder BL_Motor(
     1,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
-    0                   // Kd
+    0,                  // Kd
+    -PWM_MAX_BIT,       // Output Min Value
+    PWM_MAX_BIT         // Output Max Value
 );
 
 // Bottom Right Wheel Motor
@@ -50,14 +58,20 @@ MotorWithEncoder BR_Motor(
     1,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
-    0                   // Kd
+    0,                  // Kd
+    -PWM_MAX_BIT,       // Output Min Value
+    PWM_MAX_BIT         // Output Max Value
 );
 
 // An array of wheel motor of class MotorWithEncoder
 MotorWithEncoder wheelMotors [4] = {UL_Motor, UR_Motor, BL_Motor, BR_Motor};
 // Inputs for all 4 wheel motors computed from PD velocity controller.
 double wheelMotorInputs [4] = {0, 0, 0, 0};
+double previousWheelMotorInputs [4] = {0, 0, 0, 0};
 
 /*========================================================================================
-=                                       SECTION NAME                                     =
+=                                PS4 GLOBAL VARIABLES                                    =
 ========================================================================================*/
+
+double PS4StickOutputs [4] = {0, 0, 0, 0};
+ControllerPtr myControllers[BP32_MAX_GAMEPADS];
