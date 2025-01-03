@@ -46,7 +46,15 @@ void Motor::test_motor(double dutyCycle) {
     this->set_motor_PWM(dutyCycle); // Set motor PWM
 }
 
-// Do not use function by itself, see example function ramp_wheel_PWM for usage
+// Do not use function by itself. It should be called multiple times
+/* Example:
+ * double targetPWM = 255;
+ * for (;;) {
+ * 
+ * 
+ * 
+ * }
+*/
 void Motor::_ramp_PWM(double motorInput) {
     // Find current unclamped increment from controller output
     double unclampedIncrement = motorInput - currentDutyCycle;
@@ -92,10 +100,10 @@ void ramp_wheel_PWM(MotorWithEncoder (&WheelMotors) [4], double (&wheelMotorInpu
     static double& BLPWM = wheelMotorInputs[2];
     static double& BRPWM = wheelMotorInputs[3];
     
-    UL_Motor._ramp_PWM(ULPWM);
-    UR_Motor._ramp_PWM(URPWM);
-    BL_Motor._ramp_PWM(BLPWM);
-    BR_Motor._ramp_PWM(BRPWM);
+    UL_Motor.set_motor_PWM(ULPWM);
+    UR_Motor.set_motor_PWM(URPWM);
+    BL_Motor.set_motor_PWM(BLPWM);
+    BR_Motor.set_motor_PWM(BRPWM);
 }
 
 // Converts unit of speed from duty cycle to PWM value
@@ -149,37 +157,32 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
     else {
         Serial.print("Ramp time should be 2x lesser than duration.\n");
     }
-    /*
-    if (2*rampTimeMs < durationMs) {
-        double MOTOR_ACTUATION_PERIOD = 50;
-        int maxIter = (int) (rampTimeMs/MOTOR_ACTUATION_PERIOD);
-        double pwmIncrement = maxPWM / maxIter;
-        double currentPWM = 0;
-        // Increasing Velocity
-        for (int i = 0; i < maxIter; i++) {
-            currentPWM += pwmIncrement;
-            UL_Motor.set_motor_PWM(currentPWM);
-            UR_Motor.set_motor_PWM(-currentPWM);
-            BL_Motor.set_motor_PWM(-currentPWM);
-            BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_ACTUATION_PERIOD);
+}
+
+// To clamp motor input calculated from PS4 analog stick. Clamping is through a ramping function.
+void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorInputs) [4], MotorWithEncoder& UL_Motor) {
+    // Assume all maxPwmIncrement (defined in class) is the same across all wheel motors
+    static int maxPwmIncrement = UL_Motor.maxPwmIncrement;
+
+    // Using for loop, go through each motor inputs and apply ramping function
+    for (int i = 0; i < 4; i++) {
+        // Find current unclamped increment from controller output
+        double unclampedIncrement = wheelMotorInputs[i] - previousWheelMotorInputs[i];
+        
+        // Limit Increment
+        double increment;
+        if (unclampedIncrement > maxPwmIncrement) {
+            increment = maxPwmIncrement;
+        }
+        else if (unclampedIncrement < maxPwmIncrement) {
+            increment = -maxPwmIncrement;
+        }
+        else {
+            increment = unclampedIncrement;
         }
 
-        // Maintain Max Velocity
-        delay(durationMs- 2*rampTimeMs);
-
-        // Decreasing Velocity
-        for (int i = 0; i < maxIter; i++) {
-            currentPWM -= pwmIncrement;
-            UL_Motor.set_motor_PWM(currentPWM);
-            UR_Motor.set_motor_PWM(-currentPWM);
-            BL_Motor.set_motor_PWM(-currentPWM);
-            BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_ACTUATION_PERIOD);
-        }
+        // Update variables
+        wheelMotorInputs[i] = previousWheelMotorInputs[i] + increment; // Apply ramp
+        previousWheelMotorInputs[i] = wheelMotorInputs[i];
     }
-    else {
-        Serial.println("Ramp time should be 2x lesser than duration.");
-    }
-    */
 }
