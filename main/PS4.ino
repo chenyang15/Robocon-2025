@@ -228,14 +228,14 @@ void processBalanceBoard(ControllerPtr ctl) {
     // dumpBalanceBoard(ctl);
 }
 
-void processStick(ControllerPtr ctl, double(&PS4StickOutputs)[4]) {
+void processStick(ControllerPtr ctl, int(&PS4StickOutputs)[4]) {
     PS4StickOutputs[0] = ctl->axisX();        // (-511 - 512) left X Axis
     PS4StickOutputs[1] = ctl->axisY();        // (-511 - 512) left Y axis
     PS4StickOutputs[2] = ctl->axisRX();       // (-511 - 512) right X axis
     PS4StickOutputs[3] = ctl->axisRY();       // (-511 - 512) right Y axis
 }
 
-void processControllers(double (&PS4StickOutputs)[4]) {
+void processControllers(int (&PS4StickOutputs)[4]) {
     for (auto myController : myControllers) {
         if (myController && myController->isConnected() && myController->hasData()) {
             processStick(myController, PS4StickOutputs);
@@ -256,12 +256,12 @@ void processControllers(double (&PS4StickOutputs)[4]) {
 
 // Function to convert left and right analog stick of PS4 to velocity for each wheel motors
 // Implementation method is based on this website: https://seamonsters-2605.github.io/archive/mecanum/
-void PS4_input_to_wheel_velocity (double (&motorPWM) [4], double PS4StickOutputs [4]) {
+void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs [4]) {
     // If value input is low and within deadzone, ignore it
-    double stickLx = check_deadzone(PS4StickOutputs[0]);
-    double stickLy = check_deadzone(PS4StickOutputs[1]);
-    double stickRx = check_deadzone(PS4StickOutputs[2]);
-    double stickRy = check_deadzone(PS4StickOutputs[3]);
+    double stickLx = (double) check_deadzone(PS4StickOutputs[0]);
+    double stickLy = (double) check_deadzone(PS4StickOutputs[1]);
+    double stickRx = (double) check_deadzone(PS4StickOutputs[2]);
+    double stickRy = (double) check_deadzone(PS4StickOutputs[3]);
     
     // Get actuation effort and angle from left stick input
     double leftStickActuation = std::sqrt(stickLx*stickLx + stickLy*stickLy);
@@ -269,19 +269,23 @@ void PS4_input_to_wheel_velocity (double (&motorPWM) [4], double PS4StickOutputs
     // Get actuation effort from right stick input
     double rightStickActuation = hypot(stickRx, stickRy);
 
+    double motorPWM [4] = {0, 0, 0, 0}; // temporary variable for motor pwm
     // Compute motor speeds for omniwheel drive
     motorPWM[0] = leftStickActuation*sin(leftStickAngle + 0.25*PI) + rightStickActuation; // Upper-left motor
     motorPWM[1] = leftStickActuation*sin(leftStickAngle - 0.25*PI) - rightStickActuation; // Upper-right motor
     motorPWM[2] = leftStickActuation*sin(leftStickAngle - 0.25*PI) + rightStickActuation; // Bottom-left motor
     motorPWM[3] = leftStickActuation*sin(leftStickAngle + 0.25*PI) - rightStickActuation; // Bottom-right motor
 
+    static int printLoop = 0;
+    printLoop++;
+    // if (printLoop % (300/100) == 0) Serial.printf("Raw 1: %f, Raw 2: %f, Raw 3: %f, Raw 4: %f, ", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
     // Map to 0~100 PWM value, output is not clamped and can go up to 200
-    motorPWM[0] = map(motorPWM[0], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, 0, 100); // Upper-left motor
-    motorPWM[1] = map(motorPWM[1], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, 0, 100); // Upper-right motor
-    motorPWM[2] = map(motorPWM[2], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, 0, 100); // Bottom-left motor
-    motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, 0, 100); // Bottom-right motor
-
-    // Scale motor speeds down in case motor speed is above 100
+    motorPWM[0] = map(motorPWM[0], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-left motor
+    motorPWM[1] = map(motorPWM[1], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-right motor
+    motorPWM[2] = map(motorPWM[2], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-left motor
+    motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-right motor
+    // if (printLoop % (300/100) == 0) Serial.printf("1: %f, 2: %f, 3: %f, 4: %f, ", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
+    // Scale motor speeds down in case calculated motor speed is above 100
     double maxInput = max(abs(motorPWM[0]), abs(motorPWM[1]));
     if (maxInput > 100.0) {
         motorPWM[0] /= maxInput;
@@ -289,14 +293,20 @@ void PS4_input_to_wheel_velocity (double (&motorPWM) [4], double PS4StickOutputs
         motorPWM[2] /= maxInput;
         motorPWM[3] /= maxInput;
     }
+    
+    // Write to output argument
+    motorPWMArg[0] = motorPWM[0];
+    motorPWMArg[1] = motorPWM[1];
+    motorPWMArg[2] = motorPWM[2];
+    motorPWMArg[3] = motorPWM[3];
 }
 
-double check_deadzone(double value) {
+inline int check_deadzone(int value) {
     if (value > PS4_DEADZONE) {
         return value;
     }
     else if (value < -PS4_DEADZONE){
         return value;
     }
-    return 0.0;
+    return 0;
 }

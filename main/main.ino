@@ -78,11 +78,14 @@ void loop(){
                     processControllers(PS4StickOutputs);
                 }
                 // Calculate motor input based on PS4 analog stick
+                static int printLoop = 0;
+                printLoop++;
                 PS4_input_to_wheel_velocity(wheelMotorInputs, PS4StickOutputs);
-                Serial.printf("Wheel Motor 1: %d, Wheel Motor 2: %d, Wheel Motor 3: %d, Wheel Motor 4: %d, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+                // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
+                if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Wheel Motor 1: %f, Wheel Motor 2: %f, Wheel Motor 3: %f, Wheel Motor 4: %f, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 // Input shaping to apply ramping function to motor input calculated from PS4 stick input
                 input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
-                Serial.printf("Clamped Wheel Motor 1: %d, Clamped Wheel Motor 2: %d, Clamped Wheel Motor 3: %d, Clamped Wheel Motor 4: %d, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+                if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Clamped Wheel Motor 1: %f, Clamped Wheel Motor 2: %f, Clamped Wheel Motor 3: %f, Clamped Wheel Motor 4: %f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 vTaskDelay(1);
             }
 

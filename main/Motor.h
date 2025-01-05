@@ -7,9 +7,8 @@
 #define MAX_VELOCITY     9999999 // mm/s
 
 #define PWM_RES 12
-#define PWM_MAX_BIT 4095
+#define PWM_MAX_BIT ((1 << PWM_RES) - 1)    // equivalent to 2^PWM_RES - 1
 #define PWM_FREQ 10000              // test 1-20kHz range
-//#define PWM_DUTY_CYCLE_INCREMENT 0.8           // for motor actuation period of 50ms
 
 class Motor {
 private:
