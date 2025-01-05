@@ -9,7 +9,7 @@ Motor::Motor(byte pin1, byte pwmPin, double maxPwmIncrement)
     : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), currentDutyCycle(0.0) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
-        //pinMode(pwmPin, OUTPUT);
+        pinMode(pwmPin, OUTPUT);
         ledcSetup(pwmPin, PWM_FREQ, PWM_RES);
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
@@ -18,21 +18,19 @@ Motor::Motor(byte pin1, byte pwmPin, double maxPwmIncrement)
 
 // Method to set motor speed and direction
 void Motor::set_motor_PWM(double dutyCycle) {
-    int pwmValue = (int) dutyCycle * PWM_MAX_BIT + 0.5;
-    pwmValue = constrain(dutyCycle, -PWM_MAX_BIT, PWM_MAX_BIT);
+    int pwmValue = (int) (dutyCycle * PWM_MAX_BIT + 0.5);
+    pwmValue = constrain(pwmValue, -PWM_MAX_BIT, PWM_MAX_BIT);
+    Serial.printf("PWM Write: %d\n", pwmValue);
     
     if (pwmValue > 0) {            // CW
         digitalWrite(motorDirPin, LOW);
         ledcWrite(motorPwmPin, abs(pwmValue));
-        //analogWrite(motorPwmPin, abs(pwmValue));
 
     } else if (pwmValue < 0) {     // CCW
         digitalWrite(motorDirPin, HIGH);
         ledcWrite(motorPwmPin, abs(pwmValue));
-        // analogWrite(motorPwmPin, abs(pwmValue));
     } else {
         ledcWrite(motorPwmPin, abs(pwmValue));
-        // analogWrite(motorPwmPin, 0);
     }
 }
 

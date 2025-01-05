@@ -73,5 +73,5 @@ double previousWheelMotorInputs [4] = {0, 0, 0, 0};
 =                                PS4 GLOBAL VARIABLES                                    =
 ========================================================================================*/
 
-double PS4StickOutputs [4] = {0, 0, 0, 0};
+int PS4StickOutputs [4] = {0, 0, 0, 0};
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
