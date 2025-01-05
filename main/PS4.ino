@@ -286,7 +286,7 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-right motor
     // if (printLoop % (300/100) == 0) Serial.printf("1: %f, 2: %f, 3: %f, 4: %f, ", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
     // Scale motor speeds down in case calculated motor speed is above 100
-    double maxInput = max(abs(motorPWM[0]), abs(motorPWM[1]));
+    double maxInput = max(max(abs(motorPWM[0]), abs(motorPWM[1])), max(abs(motorPWM[2]), abs(motorPWM[3])));
     if (maxInput > 100.0) {
         motorPWM[0] /= maxInput;
         motorPWM[1] /= maxInput;

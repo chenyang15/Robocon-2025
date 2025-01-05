@@ -172,7 +172,7 @@ void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, dou
 // To clamp motor input calculated from PS4 analog stick. Clamping is through a ramping function.
 void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorInputs) [4], MotorWithEncoder& UL_Motor) {
     // Assume all maxPwmIncrement (defined in class) is the same across all wheel motors
-    static int maxPwmIncrement = UL_Motor.maxPwmIncrement;
+    static double maxPwmIncrement = UL_Motor.maxPwmIncrement;
 
     // Using for loop, go through each motor inputs and apply ramping function
     for (int i = 0; i < 4; i++) {
