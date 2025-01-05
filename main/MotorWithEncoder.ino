@@ -7,7 +7,7 @@
 // Warning: Total encoders are limited up to 8
 
 // Constructor for child class of MotorControl
-MotorWithEncoder::MotorWithEncoder(byte pin1, byte pwmPin, byte encoderA, byte encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin, double outputMax)
+MotorWithEncoder::MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoderA, uint8_t encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin, double outputMax)
     : Motor(pin1, pwmPin, maxPwmIncrement),           // Motor setup (constructor from parent class)
     currentEncoderCount(0), previousEncoderCount(0), ticksPerSample(0), // Encoder variables initialization
     Encoder(true),                          // Create encoder class

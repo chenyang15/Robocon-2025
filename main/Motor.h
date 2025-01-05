@@ -12,14 +12,14 @@
 
 class Motor {
 private:
-    // Motor pin variables
-    byte motorDirPin;
-    byte motorPwmPin;
+    uint8_t motorDirPin;
+    uint8_t motorPwmPin;
     double currentDutyCycle;    // Duty cycle (Range: 0~100)
+    static uint8_t pwmChannel;
 
 public:
     // Constructor
-    Motor(byte pin1, byte pwmPin, double maxPwmIncrement);
+    Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement);
 
     // Members
     double maxPwmIncrement;     // Range: 0~100
@@ -39,7 +39,7 @@ private:
     int previousEncoderCount;
 public:
     // Constructor
-    MotorWithEncoder(byte pin1, byte pwmPin, byte encoderA, byte encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin = -100.0, double outputMax = 100.0);
+    MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoderA, uint8_t encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin = -100.0, double outputMax = 100.0);
 
     PID_Controller PID;
     double ticksPerSample;
@@ -48,6 +48,8 @@ public:
 
 };
 
+// Initialize static member in the .cpp file
+uint8_t Motor::pwmChannel = 0;  // Static member initialization
 
 inline int duty_cycle_to_PWM(double dutyCycle);
 void test_all_wheel_motors(Motor* UL_motor, Motor* UR_motor, Motor* BL_motor, Motor* BR_motor);

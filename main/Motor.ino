@@ -5,12 +5,20 @@
 #include "Timing.h"
 
 // Constructor for class MotorControl
-Motor::Motor(byte pin1, byte pwmPin, double maxPwmIncrement)
+Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
     : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), currentDutyCycle(0.0) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
         pinMode(pwmPin, OUTPUT);
         ledcSetup(pwmPin, PWM_FREQ, PWM_RES);
+        
+        // Check for available PWM channels
+        if (Motor::pwmChannel == 16) {
+            Serial.printf("Max PWM channels limit reached. Motor class cannot be initialized.\nStopping program.\n");
+            stop_program();
+        }
+        ledcAttachPin(pwmPin, pwmChannel);
+        Motor::pwmChannel++;
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
         // Note: Requires PWM to speed mapping
@@ -18,9 +26,13 @@ Motor::Motor(byte pin1, byte pwmPin, double maxPwmIncrement)
 
 // Method to set motor speed and direction
 void Motor::set_motor_PWM(double dutyCycle) {
-    int pwmValue = (int) (dutyCycle * PWM_MAX_BIT + 0.5);
+    int pwmValue = (int) ((dutyCycle * PWM_MAX_BIT + 0.5) / 100);
     pwmValue = constrain(pwmValue, -PWM_MAX_BIT, PWM_MAX_BIT);
-    Serial.printf("PWM Write: %d\n", pwmValue);
+    
+    // For printing purposes
+    static int printLoop = 0;
+    printLoop++;
+    if (printLoop % 2 == 0) Serial.printf("PWM Write: %d\n", pwmValue);
     
     if (pwmValue > 0) {            // CW
         digitalWrite(motorDirPin, LOW);
@@ -172,7 +184,7 @@ void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorIn
         if (unclampedIncrement > maxPwmIncrement) {
             increment = maxPwmIncrement;
         }
-        else if (unclampedIncrement < maxPwmIncrement) {
+        else if (unclampedIncrement < -maxPwmIncrement) {
             increment = -maxPwmIncrement;
         }
         else {
