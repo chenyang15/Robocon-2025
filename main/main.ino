@@ -82,13 +82,7 @@ void loop(){
                 printLoop++;
                 PS4_input_to_wheel_velocity(wheelMotorInputs, PS4StickOutputs);
                 // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
-                //if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Wheel Motor 1: %f, Wheel Motor 2: %f, Wheel Motor 3: %f, Wheel Motor 4: %f, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
-                // Testing. Overwriting PS4 inputs manually
-                wheelMotorInputs[0] = 100;
-                wheelMotorInputs[1] = 100;
-                wheelMotorInputs[2] = 100;
-                wheelMotorInputs[3] = 100;
-
+                if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Wheel Motor 1: %f, Wheel Motor 2: %f, Wheel Motor 3: %f, Wheel Motor 4: %f, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 // Input shaping to apply ramping function to motor input calculated from PS4 stick input
                 input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
                 if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Clamped Wheel Motor 1: %f, Clamped Wheel Motor 2: %f, Clamped Wheel Motor 3: %f, Clamped Wheel Motor 4: %f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
