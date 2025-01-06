@@ -37,11 +37,19 @@ void setup(){
     //ESP32Encoder::useInternalWeakPullResistors = puType::down;
 	// Enable the weak pull up resistors
 	ESP32Encoder::useInternalWeakPullResistors = puType::up;
+
+    // Wait for PS4 Connection
+    bool dataUpdated = BP32.update();
+    while (!dataUpdated) {
+        dataUpdated = BP32.update();
+        delay(250);
+    }
+    pinMode(LED_PIN, OUTPUT);
 }
 
 void loop(){
     digitalWrite(LED_PIN, HIGH);
-
+    
     // Main loop setup
     uint32_t loopCount = 0;
     // Main loop
@@ -82,10 +90,14 @@ void loop(){
                 printLoop++;
                 PS4_input_to_wheel_velocity(wheelMotorInputs, PS4StickOutputs);
                 // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
-                if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Wheel Motor 1: %f, Wheel Motor 2: %f, Wheel Motor 3: %f, Wheel Motor 4: %f, ", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+                // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("1:%.2f,2:%.2f,3:%.2f,4:%.2f,", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 // Input shaping to apply ramping function to motor input calculated from PS4 stick input
+                wheelMotorInputs[0] = 100;
+                wheelMotorInputs[1] = 100;
+                wheelMotorInputs[2] = 100;
+                wheelMotorInputs[3] = 100;
                 input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
-                if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Clamped Wheel Motor 1: %f, Clamped Wheel Motor 2: %f, Clamped Wheel Motor 3: %f, Clamped Wheel Motor 4: %f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+                if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("C1:%.2f,C2:%.2f,C3:%.2f,C4:%.2f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 vTaskDelay(1);
             }
 

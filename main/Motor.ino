@@ -28,12 +28,7 @@ Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
 void Motor::set_motor_PWM(double dutyCycle) {
     int pwmValue = (int) ((dutyCycle * PWM_MAX_BIT + 0.5) / 100);
     pwmValue = constrain(pwmValue, -PWM_MAX_BIT, PWM_MAX_BIT);
-    
-    // For printing purposes
-    static int printLoop = 0;
-    printLoop++;
-    if (printLoop % 2 == 0) Serial.printf("PWM Write: %d\n", pwmValue);
-    
+       
     if (pwmValue > 0) {            // CW
         digitalWrite(motorDirPin, LOW);
         ledcWrite(motorPwmPin, abs(pwmValue));
