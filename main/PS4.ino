@@ -304,8 +304,8 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     // Write to output argument
     motorPWMArg[0] =  motorPWM[0];
     motorPWMArg[1] = -motorPWM[1]; // -ve to consider cw and ccw direction
-    motorPWMArg[2] = -motorPWM[2]; // -ve to consider cw and ccw direction
-    motorPWMArg[3] =  motorPWM[3];
+    motorPWMArg[2] =  motorPWM[2]; // -ve to consider cw and ccw direction
+    motorPWMArg[3] = -motorPWM[3];
 }
 
 inline int check_deadzone(int value) {
