@@ -15,7 +15,8 @@ private:
     uint8_t motorDirPin;
     uint8_t motorPwmPin;
     double currentDutyCycle;    // Duty cycle (Range: 0~100)
-    static uint8_t pwmChannel;
+    static uint8_t pwmChannelsUsed;
+    uint8_t pwmChannel;
 
 public:
     // Constructor
@@ -49,7 +50,7 @@ public:
 };
 
 // Initialize static member in the .cpp file
-uint8_t Motor::pwmChannel = 0;  // Static member initialization
+uint8_t Motor::pwmChannelsUsed = 0;  // Static member initialization
 
 inline int duty_cycle_to_PWM(double dutyCycle);
 void test_all_wheel_motors(Motor* UL_motor, Motor* UR_motor, Motor* BL_motor, Motor* BR_motor);

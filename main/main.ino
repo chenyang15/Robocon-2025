@@ -45,11 +45,13 @@ void setup(){
         delay(250);
     }
     pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println("Connected. Running Program.");
+    delay(500);
+    digitalWrite(LED_PIN, LOW);
 }
 
 void loop(){
-    digitalWrite(LED_PIN, HIGH);
-    
     // Main loop setup
     uint32_t loopCount = 0;
     // Main loop
@@ -92,10 +94,6 @@ void loop(){
                 // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
                 // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("1:%.2f,2:%.2f,3:%.2f,4:%.2f,", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 // Input shaping to apply ramping function to motor input calculated from PS4 stick input
-                wheelMotorInputs[0] = 100;
-                wheelMotorInputs[1] = 100;
-                wheelMotorInputs[2] = 100;
-                wheelMotorInputs[3] = 100;
                 input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
                 if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("C1:%.2f,C2:%.2f,C3:%.2f,C4:%.2f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 vTaskDelay(1);
@@ -104,7 +102,6 @@ void loop(){
             // Increment loop count
             loopCount++;
         }
-    digitalWrite(LED_PIN, LOW);
     }
 }
 

@@ -9,16 +9,16 @@ Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
     : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), currentDutyCycle(0.0) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
-        pinMode(pwmPin, OUTPUT);
-        ledcSetup(pwmPin, PWM_FREQ, PWM_RES);
         
         // Check for available PWM channels
-        if (Motor::pwmChannel == 16) {
+        if (Motor::pwmChannelsUsed == 16) {
             Serial.printf("Max PWM channels limit reached. Motor class cannot be initialized.\nStopping program.\n");
             stop_program();
         }
+        pwmChannel = Motor::pwmChannelsUsed;
+        ledcSetup(pwmChannel, PWM_FREQ, PWM_RES);
         ledcAttachPin(pwmPin, pwmChannel);
-        Motor::pwmChannel++;
+        Motor::pwmChannelsUsed++;
 
         // TODO: Find max acceleration and then find the max the rate of change of PWM
         // Note: Requires PWM to speed mapping
@@ -31,13 +31,13 @@ void Motor::set_motor_PWM(double dutyCycle) {
        
     if (pwmValue > 0) {            // CW
         digitalWrite(motorDirPin, LOW);
-        ledcWrite(motorPwmPin, abs(pwmValue));
+        ledcWrite(pwmChannel, abs(pwmValue));
 
     } else if (pwmValue < 0) {     // CCW
         digitalWrite(motorDirPin, HIGH);
-        ledcWrite(motorPwmPin, abs(pwmValue));
+        ledcWrite(pwmChannel, abs(pwmValue));
     } else {
-        ledcWrite(motorPwmPin, abs(pwmValue));
+        ledcWrite(pwmChannel, abs(pwmValue));
     }
 }
 
