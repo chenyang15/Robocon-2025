@@ -39,11 +39,11 @@ void setup(){
 	ESP32Encoder::useInternalWeakPullResistors = puType::up;
 
     // Wait for PS4 Connection
-    bool dataUpdated = BP32.update();
-    while (!dataUpdated) {
-        dataUpdated = BP32.update();
-        delay(250);
-    }
+    // bool dataUpdated = BP32.update();
+    // while (!dataUpdated) {
+    //     dataUpdated = BP32.update();
+    //     delay(250);
+    // }
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);
     Serial.println("Connected. Running Program.");
@@ -53,55 +53,60 @@ void setup(){
 
 void loop(){
     // Main loop setup
-    uint32_t loopCount = 0;
-    // Main loop
-    for(;;) {
-        unsigned long previousTime = 0;
-        unsigned long currentTime = millis();
-        
-        if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
-            previousTime = currentTime;
-            // Wheel motors - Get encoder count
-            if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
-                // Update tick velocity
-                UL_Motor.update_tick_velocity();
-                UR_Motor.update_tick_velocity();
-                BL_Motor.update_tick_velocity();
-                BR_Motor.update_tick_velocity();
-            }
+    forward_hard_coded_with_encoder(0, 100, 10000, 0, 45000, wheelMotors);
+    for(;;){
 
-            // Wheel motors - Actuation
-            if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
-                // TODO: Need PWM to speed mapping
-                // Calculate PD PWM output of each wheel's motor
-                // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
-                // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
-                // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
-                // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
-                // Actuate Motor
-                ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
-            }
-
-            if ((loopCount+PS4_SAMPLING_PERIOD_OFFSET) % PS4_SAMPLING_MOD == 0) {
-                bool dataUpdated = BP32.update();
-                if (dataUpdated) {
-                    processControllers(PS4StickOutputs);
-                }
-                // Calculate motor input based on PS4 analog stick
-                static int printLoop = 0;
-                printLoop++;
-                PS4_input_to_wheel_velocity(wheelMotorInputs, PS4StickOutputs);
-                // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
-                // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("1:%.2f,2:%.2f,3:%.2f,4:%.2f,", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
-                // Input shaping to apply ramping function to motor input calculated from PS4 stick input
-                input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
-                if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("C1:%.2f,C2:%.2f,C3:%.2f,C4:%.2f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
-                vTaskDelay(1);
-            }
-
-            // Increment loop count
-            loopCount++;
-        }
     }
+
+    // uint32_t loopCount = 0;
+    // Main loop
+    // for(;;) {
+    //     unsigned long previousTime = 0;
+    //     unsigned long currentTime = millis();
+        
+    //     if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
+    //         previousTime = currentTime;
+    //         // Wheel motors - Get encoder count
+    //         if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
+    //             // Update tick velocity
+    //             UL_Motor.update_tick_velocity();
+    //             UR_Motor.update_tick_velocity();
+    //             BL_Motor.update_tick_velocity();
+    //             BR_Motor.update_tick_velocity();
+    //         }
+
+    //         // Wheel motors - Actuation
+    //         if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
+    //             // TODO: Need PWM to speed mapping
+    //             // Calculate PD PWM output of each wheel's motor
+    //             // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
+    //             // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
+    //             // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
+    //             // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
+    //             // Actuate Motor
+    //             ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
+    //         }
+
+    //         if ((loopCount+PS4_SAMPLING_PERIOD_OFFSET) % PS4_SAMPLING_MOD == 0) {
+    //             bool dataUpdated = BP32.update();
+    //             if (dataUpdated) {
+    //                 processControllers(PS4StickOutputs);
+    //             }
+    //             // Calculate motor input based on PS4 analog stick
+    //             static int printLoop = 0;
+    //             printLoop++;
+    //             PS4_input_to_wheel_velocity(wheelMotorInputs, PS4StickOutputs);
+    //             // if (printLoop % (300/PS4_SAMPLING_PERIOD) == 0) Serial.printf("Lx: %d, Ly: %d, Rx: %d, Ry: %d\n", PS4StickOutputs[0], PS4StickOutputs[1], PS4StickOutputs[2], PS4StickOutputs[3]);
+    //             // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("1:%.2f,2:%.2f,3:%.2f,4:%.2f,", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+    //             // Input shaping to apply ramping function to motor input calculated from PS4 stick input
+    //             input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
+    //             // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("C1:%.2f,C2:%.2f,C3:%.2f,C4:%.2f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
+    //             vTaskDelay(1);
+    //         }
+
+    //         // Increment loop count
+    //         loopCount++;
+    //     }
+    // }
 }
 

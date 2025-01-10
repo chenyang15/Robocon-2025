@@ -121,48 +121,115 @@ void test_all_wheel_motors(Motor* UL_Motor, Motor* UR_Motor, Motor* BL_Motor, Mo
 
 }
 
-void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, Motor (&wheelMotors)[4]) {
+void forward_hard_coded_with_encoder(double initialPWM, double maxPWM, double rampUpTimeMs, double maxSpeedTime, double rampDownTimeMs, MotorWithEncoder (&wheelMotors)[4]) {
     // Setting up references
-    Motor& UL_Motor = wheelMotors[0];
-    Motor& UR_Motor = wheelMotors[1];
-    Motor& BL_Motor = wheelMotors[2];
-    Motor& BR_Motor = wheelMotors[3];
-    if (2*rampTimeMs < durationMs) {
-        int maxIter = (int) (rampTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
-        double pwmIncrement = (maxPWM-initialPWM) / maxIter;
-        double currentPWM = initialPWM;
-        // Increasing Velocity
-        for (int i = 0; i < maxIter; i++) {
-            currentPWM += pwmIncrement;
-            UL_Motor.set_motor_PWM(currentPWM);
-            UR_Motor.set_motor_PWM(-currentPWM);
-            BL_Motor.set_motor_PWM(-currentPWM);
-            BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_WHEEL_ACTUATION_PERIOD);
-        }
-
-        // Maintain Max Velocity
-        delay(durationMs- 2*rampTimeMs);
-
-        // Decreasing Velocity
-        for (int i = 0; i < maxIter; i++) {
-            currentPWM -= pwmIncrement;
-            UL_Motor.set_motor_PWM(currentPWM);
-            UR_Motor.set_motor_PWM(-currentPWM);
-            BL_Motor.set_motor_PWM(-currentPWM);
-            BR_Motor.set_motor_PWM(currentPWM);
-            delay(MOTOR_WHEEL_ACTUATION_PERIOD);
-        }
-        
-        UL_Motor.stop_motor();
-        UR_Motor.stop_motor();
-        BL_Motor.stop_motor();
-        BR_Motor.stop_motor();
+    MotorWithEncoder& UL_Motor = wheelMotors[0];
+    MotorWithEncoder& UR_Motor = wheelMotors[1];
+    MotorWithEncoder& BL_Motor = wheelMotors[2];
+    MotorWithEncoder& BR_Motor = wheelMotors[3];
+    
+    int rampUpMaxIter = (int) (rampUpTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
+    double upPwmIncrement = (maxPWM-initialPWM) / rampUpMaxIter;
+    double currentPWM = initialPWM;
+    // Increasing Velocity
+    for (int i = 0; i < rampUpMaxIter; i++) {
+        currentPWM += upPwmIncrement;
+        UL_Motor.set_motor_PWM(currentPWM);
+        // UR_Motor.set_motor_PWM(-currentPWM);
+        // BL_Motor.set_motor_PWM(-currentPWM);
+        // BR_Motor.set_motor_PWM(currentPWM);
+        delay_with_encoder(MOTOR_WHEEL_ACTUATION_PERIOD, wheelMotors);
     }
-    else {
-        Serial.print("Ramp time should be 2x lesser than duration.\n");
+
+    // Serial.printf("Max speed reached.\n");
+    // Maintain Max Velocity
+    delay((int) maxSpeedTime);
+    // Serial.printf("Decreasing speed.\n");
+    // Decreasing Velocity
+    int rampDownMaxIter = (int) (rampDownTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
+    double downPwmIncrement = (maxPWM-initialPWM) / rampDownMaxIter;
+    for (int i = 0; i < rampDownMaxIter; i++) {
+        currentPWM -= downPwmIncrement;
+        UL_Motor.set_motor_PWM(currentPWM);
+        // UR_Motor.set_motor_PWM(-currentPWM);
+        // BL_Motor.set_motor_PWM(-currentPWM);
+        // BR_Motor.set_motor_PWM(currentPWM);
+        // delay(MOTOR_WHEEL_ACTUATION_PERIOD);
+        static int loopCount = 0;
+        loopCount++;
+        if (loopCount % 2 == 0) Serial.printf("PWM:%.2f,", currentPWM/100);
+        delay_with_encoder(MOTOR_WHEEL_ACTUATION_PERIOD, wheelMotors);
+    }
+    // Serial.printf("Stopping.\n");
+    
+    // UL_Motor.stop_motor();
+    // UR_Motor.stop_motor();
+    BL_Motor.stop_motor();
+    // BR_Motor.stop_motor();
+}
+
+void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4]) {
+    // Setting up references
+    MotorWithEncoder& UL_Motor = wheelMotors[0];
+    MotorWithEncoder& UR_Motor = wheelMotors[1];
+    MotorWithEncoder& BL_Motor = wheelMotors[2];
+    MotorWithEncoder& BR_Motor = wheelMotors[3];
+
+    unsigned long previousTime = millis();
+    unsigned long endTime = previousTime + delayMs;
+    for(;;){
+        unsigned long currentTime = millis();
+        if (currentTime-previousTime >= MOTOR_WHEEL_ENCODER_PERIOD) {
+                previousTime = currentTime;
+                UL_Motor.update_tick_velocity();
+        }
+        if (endTime - currentTime > delayMs) {
+            return;
+        }
     }
 }
+// void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, Motor (&wheelMotors)[4]) {
+//     // Setting up references
+//     Motor& UL_Motor = wheelMotors[0];
+//     Motor& UR_Motor = wheelMotors[1];
+//     Motor& BL_Motor = wheelMotors[2];
+//     Motor& BR_Motor = wheelMotors[3];
+//     if (2*rampTimeMs < durationMs) {
+//         int maxIter = (int) (rampTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
+//         double pwmIncrement = (maxPWM-initialPWM) / maxIter;
+//         double currentPWM = initialPWM;
+//         // Increasing Velocity
+//         for (int i = 0; i < maxIter; i++) {
+//             currentPWM += pwmIncrement;
+//             UL_Motor.set_motor_PWM(currentPWM);
+//             UR_Motor.set_motor_PWM(-currentPWM);
+//             BL_Motor.set_motor_PWM(-currentPWM);
+//             BR_Motor.set_motor_PWM(currentPWM);
+//             delay(MOTOR_WHEEL_ACTUATION_PERIOD);
+//         }
+
+//         // Maintain Max Velocity
+//         delay(durationMs- 2*rampTimeMs);
+
+//         // Decreasing Velocity
+//         for (int i = 0; i < maxIter; i++) {
+//             currentPWM -= pwmIncrement;
+//             UL_Motor.set_motor_PWM(currentPWM);
+//             UR_Motor.set_motor_PWM(-currentPWM);
+//             BL_Motor.set_motor_PWM(-currentPWM);
+//             BR_Motor.set_motor_PWM(currentPWM);
+//             delay(MOTOR_WHEEL_ACTUATION_PERIOD);
+//         }
+        
+//         UL_Motor.stop_motor();
+//         UR_Motor.stop_motor();
+//         BL_Motor.stop_motor();
+//         BR_Motor.stop_motor();
+//     }
+//     else {
+//         Serial.print("Ramp time should be 2x lesser than duration.\n");
+//     }
+// }
 
 // To clamp motor input calculated from PS4 analog stick. Clamping is through a ramping function.
 void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorInputs) [4], MotorWithEncoder& UL_Motor) {
