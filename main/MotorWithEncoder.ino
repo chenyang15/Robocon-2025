@@ -10,7 +10,6 @@
 MotorWithEncoder::MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoderA, uint8_t encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin, double outputMax)
     : Motor(pin1, pwmPin, maxPwmIncrement),           // Motor setup (constructor from parent class)
     currentEncoderCount(0), previousEncoderCount(0), ticksPerSample(0), // Encoder variables initialization
-    Encoder(true),                          // Create encoder class
     PID(kp, ki, kd, outputMin, outputMax)   // Create PID controller class
     {
     // Encoder setup

@@ -54,13 +54,13 @@ void setup(){
 void loop(){
     // Main loop setup
     uint32_t loopCount = 0;
+    unsigned long previousTime = 0;
     // Main loop
     for(;;) {
-        unsigned long previousTime = 0;
         unsigned long currentTime = millis();
         
         if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
-            previousTime = currentTime;
+            previousTime += 10;
             // Wheel motors - Get encoder count
             if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
                 // Update tick velocity
