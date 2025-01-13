@@ -36,8 +36,8 @@ public:
 class MotorWithEncoder : public Motor {
 private:
     ESP32Encoder Encoder;
-    int currentEncoderCount;
-    int previousEncoderCount;
+    int32_t currentEncoderCount;
+    int32_t previousEncoderCount;
 public:
     // Constructor
     MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoderA, uint8_t encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin = -100.0, double outputMax = 100.0);
@@ -53,6 +53,7 @@ public:
 uint8_t Motor::pwmChannelsUsed = 0;  // Static member initialization
 
 inline int duty_cycle_to_PWM(double dutyCycle);
+void forward_hard_coded_with_encoder(double initialPWM, double maxPWM, double rampUpTimeMs, double maxSpeedTime, double rampDownTimeMs, MotorWithEncoder (&wheelMotors)[4]);
 void test_all_wheel_motors(Motor* UL_motor, Motor* UR_motor, Motor* BL_motor, Motor* BR_motor);
 void forward_hard_coded(double initialPWM, double maxPWM, double rampTime, double duration, Motor wheelMotors[4]);
 void ramp_wheel_PWM(MotorWithEncoder (&wheelMotors) [4], double (&wheelMotorPWMs) [4]);
