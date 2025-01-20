@@ -24,6 +24,6 @@ void MotorWithEncoder::update_tick_velocity() {
     printLoop++;
     // if (printLoop % 5 == 0) Serial.printf("TPS:%.2f\n", ticksPerSample);
     // if (printLoop % 4 == 0) Serial.printf("Count:%d,TPS:%.2f\n", currentEncoderCount, ticksPerSample);
-    if (printLoop % 4 == 0) Serial.printf("TPS:%.2f\n", ticksPerSample);
+    // if (printLoop % 4 == 0) Serial.printf("TPS:%.2f\n", ticksPerSample);
     // if (printLoop % 4 == 0) Serial.printf("Count:%d, PCount:%d, TPS:%.2f\n", currentEncoderCount, previousEncoderCount, ticksPerSample);
 }

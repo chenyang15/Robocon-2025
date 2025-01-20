@@ -281,17 +281,18 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     motorPWM[1] = leftStickActuation*sin(leftStickAngle - 0.25*PI) - rightStickActuation; // Upper-right motor
     motorPWM[2] = leftStickActuation*sin(leftStickAngle - 0.25*PI) + rightStickActuation; // Bottom-left motor
     motorPWM[3] = leftStickActuation*sin(leftStickAngle + 0.25*PI) - rightStickActuation; // Bottom-right motor
+    
+    // Printing
     static int printLoop = 0;
     printLoop++;
-    // if (printLoop % (500/100) == 0) Serial.printf("Angle: %.2f, P:%.2f, N:%.2f\n", leftStickAngle, sin(leftStickAngle + 0), sin(leftStickAngle - 0.25*PI));
-    // if (printLoop % (500/100) == 0) Serial.printf("Angle:%f, Speed:%f\n", leftStickAngle, leftStickActuation);
-    //if (printLoop % (500/100) == 0) Serial.printf("Raw1: %.2f, Raw2: %.2f, Raw3: %.2f, Raw4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
+
     // Map to 0~100 PWM value, output is not clamped and can go up to 200
     motorPWM[0] = map(motorPWM[0], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-left motor
     motorPWM[1] = map(motorPWM[1], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-right motor
     motorPWM[2] = map(motorPWM[2], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-left motor
     motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-right motor
-    //if (printLoop % (300/100) == 0) Serial.printf("1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
+    if (printLoop % (300/100) == 0) Serial.printf("1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
+
     // Scale motor speeds down in case calculated motor speed is above 100
     double maxInput = max(max(abs(motorPWM[0]), abs(motorPWM[1])), max(abs(motorPWM[2]), abs(motorPWM[3])));
     if (maxInput > 100.0) {
