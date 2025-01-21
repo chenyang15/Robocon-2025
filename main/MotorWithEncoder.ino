@@ -16,14 +16,9 @@ MotorWithEncoder::MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoder
     Encoder.attachFullQuad(encoderA, encoderB);
 }
 
-void MotorWithEncoder::update_tick_velocity() {
+inline int MotorWithEncoder::update_tick_velocity() {
     this->previousEncoderCount = this->currentEncoderCount;
     this->currentEncoderCount = (int32_t) Encoder.getCount();
-    this->ticksPerSample = ((double) currentEncoderCount - (double) previousEncoderCount) / (double) MOTOR_WHEEL_ENCODER_PERIOD;
-    static int printLoop = 0;
-    printLoop++;
-    // if (printLoop % 5 == 0) Serial.printf("TPS:%.2f\n", ticksPerSample);
-    // if (printLoop % 4 == 0) Serial.printf("Count:%d,TPS:%.2f\n", currentEncoderCount, ticksPerSample);
-    // if (printLoop % 4 == 0) Serial.printf("TPS:%.2f\n", ticksPerSample);
-    // if (printLoop % 4 == 0) Serial.printf("Count:%d, PCount:%d, TPS:%.2f\n", currentEncoderCount, previousEncoderCount, ticksPerSample);
+    this->ticksPerSample = ((double) currentEncoderCount - (double) previousEncoderCount);
+    return this->ticksPerSample;
 }

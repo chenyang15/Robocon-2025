@@ -3,6 +3,7 @@
 #include "Motor.h"
 #include "Utils.h"
 #include "Timing.h"
+#include "Globals.h"
 
 // Constructor for class MotorControl
 Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
@@ -121,6 +122,7 @@ void test_all_wheel_motors(Motor* UL_Motor, Motor* UR_Motor, Motor* BL_Motor, Mo
 
 }
 
+// This is a blocking function and is used for testing and data collection purposes only. Do not use in actual code
 void forward_hard_coded_with_encoder(double initialPWM, double maxPWM, double rampUpTimeMs, double maxSpeedTime, double rampDownTimeMs, MotorWithEncoder (&wheelMotors)[4]) {
     // Setting up references
     MotorWithEncoder& UL_Motor = wheelMotors[0];
@@ -135,9 +137,10 @@ void forward_hard_coded_with_encoder(double initialPWM, double maxPWM, double ra
     for (int i = 0; i < rampUpMaxIter; i++) {
         currentPWM += upPwmIncrement;
         UL_Motor.set_motor_PWM(currentPWM);
-        // UR_Motor.set_motor_PWM(-currentPWM);
-        // BL_Motor.set_motor_PWM(-currentPWM);
-        // BR_Motor.set_motor_PWM(currentPWM);
+        UR_Motor.set_motor_PWM(currentPWM);
+        BL_Motor.set_motor_PWM(currentPWM);
+        BR_Motor.set_motor_PWM(currentPWM);
+        
         delay_with_encoder(MOTOR_WHEEL_ACTUATION_PERIOD, wheelMotors);
     }
 
@@ -151,21 +154,20 @@ void forward_hard_coded_with_encoder(double initialPWM, double maxPWM, double ra
     for (int i = 0; i < rampDownMaxIter; i++) {
         currentPWM -= downPwmIncrement;
         UL_Motor.set_motor_PWM(currentPWM);
-        // UR_Motor.set_motor_PWM(-currentPWM);
-        // BL_Motor.set_motor_PWM(-currentPWM);
-        // BR_Motor.set_motor_PWM(currentPWM);
-        // delay(MOTOR_WHEEL_ACTUATION_PERIOD);
+        UR_Motor.set_motor_PWM(currentPWM);
+        BL_Motor.set_motor_PWM(currentPWM);
+        BR_Motor.set_motor_PWM(currentPWM);
         static int loopCount = 0;
         loopCount++;
-        if (loopCount % 2 == 0) Serial.printf("PWM:%.2f,", currentPWM/100);
+        if (loopCount % 1 == 0) Serial.printf("PWM:%.2f,", currentPWM/100);
         delay_with_encoder(MOTOR_WHEEL_ACTUATION_PERIOD, wheelMotors);
     }
     // Serial.printf("Stopping.\n");
     
-    // UL_Motor.stop_motor();
-    // UR_Motor.stop_motor();
+    UL_Motor.stop_motor();
+    UR_Motor.stop_motor();
     BL_Motor.stop_motor();
-    // BR_Motor.stop_motor();
+    BR_Motor.stop_motor();
 }
 
 void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4]) {
@@ -175,13 +177,26 @@ void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4
     MotorWithEncoder& BL_Motor = wheelMotors[2];
     MotorWithEncoder& BR_Motor = wheelMotors[3];
 
+    int a, b, c, d;
+
     unsigned long previousTime = millis();
     unsigned long endTime = previousTime + delayMs;
     for(;;){
         unsigned long currentTime = millis();
         if (currentTime-previousTime >= MOTOR_WHEEL_ENCODER_PERIOD) {
-                previousTime = currentTime;
-                UL_Motor.update_tick_velocity();
+            previousTime = currentTime;
+            a = UL_Motor.update_tick_velocity();
+            b = UR_Motor.update_tick_velocity();
+            c = BL_Motor.update_tick_velocity();
+            d = BR_Motor.update_tick_velocity();
+
+            static int loopCount = 0;
+            if (loopCount % 2 == 0) {
+                char buffer [50];
+                sprintf(buffer, "1:%d,2:%d,3:%d,4:%d\n", a, b, c, d);
+                client.send(buffer);
+            }
+            loopCount++;
         }
         if (endTime - currentTime > delayMs) {
             return;

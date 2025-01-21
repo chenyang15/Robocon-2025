@@ -45,11 +45,11 @@ public:
     PID_Controller PID;
     double ticksPerSample;
     
-    void update_tick_velocity();
+    inline int update_tick_velocity();
 
 };
 
-// Initialize static member in the .cpp file
+// Initialize static member in the .h file
 uint8_t Motor::pwmChannelsUsed = 0;  // Static member initialization
 
 inline int duty_cycle_to_PWM(double dutyCycle);

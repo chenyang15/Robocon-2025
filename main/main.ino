@@ -9,13 +9,11 @@
 #include "PS4.h"
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 
-/* Currently implementing:
+/* Currently testing:
  * - CPU utilization calculation
- *
- * Last implemented:
  * - data transmission over WiFi
+ * 
 */
-
 
 void setup(){
     Serial.begin(115200);
@@ -68,49 +66,20 @@ void setup(){
 void loop(){
     // Main loop setup
     uint32_t loopCount = 0;
-    unsigned long previousTime = 0;
-
-    // Timing variables used only for calculating CPU utilization
-    unsigned long encoderWheelTime = 0;
-    unsigned long motorActuationTime = 0;
-    unsigned long ps4SamplingTime = 0;
-    unsigned long loopEndTime = 0;
-    uint8_t taskRan = 0;    // Flag that indicates task(s) had been ran in current loop.
+    unsigned long previousTime = millis();
+    unsigned long mainLoopEndTime = 0;
+    // forward_hard_coded_with_encoder(0,100,8000,0,20000,wheelMotors);
+    // for(;;){}
     // Main loop
     for(;;) {
         unsigned long currentTime = millis();
 
         if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
             previousTime += 10;
-            // Wheel motors - Get encoder count //
-            if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
-                encoderWheelTime = millis();
-                taskRan = 1;
-                // Update tick velocity
-                UL_Motor.update_tick_velocity();
-                UR_Motor.update_tick_velocity();
-                BL_Motor.update_tick_velocity();
-                BR_Motor.update_tick_velocity();
-            }
-
-            // Wheel motors - Actuation //
-            if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
-                motorActuationTime = millis();
-                taskRan = 1;
-                // TODO: Need PWM to speed mapping
-                // Calculate PD PWM output of each wheel's motor
-                // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
-                // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
-                // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
-                // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
-                // Actuate Motor
-                // ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
-            }
-
             // PS4 Sampling //
             if ((loopCount+PS4_SAMPLING_LOOP_OFFSET) % PS4_SAMPLING_MOD == 0) {
-                ps4SamplingTime = millis();
-                taskRan = 1;
+                PS4SamplingTask.set_start_time();
+
                 bool dataUpdated = BP32.update();
                 if (dataUpdated) {
                     processControllers(PS4StickOutputs);
@@ -125,47 +94,104 @@ void loop(){
                 input_shaping(wheelMotorInputs, previousWheelMotorInputs, UL_Motor);
                 // if (printLoop % (500/PS4_SAMPLING_PERIOD) == 0) Serial.printf("C1:%.2f,C2:%.2f,C3:%.2f,C4:%.2f\n", wheelMotorInputs[0], wheelMotorInputs[1], wheelMotorInputs[2], wheelMotorInputs[3]);
                 vTaskDelay(1);
+
+                PS4SamplingTask.set_end_time();
             }
+
+            // Wheel motors - Get encoder count //
+            if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
+                EncoderTask.set_start_time();
+
+                // Update tick velocity
+                UL_Motor.update_tick_velocity();
+                UR_Motor.update_tick_velocity();
+                BL_Motor.update_tick_velocity();
+                BR_Motor.update_tick_velocity();
+
+                EncoderTask.set_end_time();
+            }
+
+            // Wheel motors - Actuation //
+            if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
+                WheelActuationTask.set_start_time();
+                
+                // TODO: Need PWM to speed mapping
+                // Calculate PD PWM output of each wheel's motor
+                // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
+                // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
+                // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
+                // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
+                // Actuate Motor
+                ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
+                
+                WheelActuationTask.set_end_time();
+            }
+
 
             // CPU Utilization Calculation //
             if ((loopCount+CPU_UTIL_CALCULATION_LOOP_OFFSET) % CPU_UTIL_CALCULATION_MOD == 0) {
+                CpuUtilTask.set_start_time();
+                EncoderTask.calculate_cpu_util();
+                WheelActuationTask.calculate_cpu_util();
+                PS4SamplingTask.calculate_cpu_util();
 
+                CpuUtilTask.set_end_time();
+                CpuUtilTask.calculate_cpu_util();
+
+                static int printLoop = 0;
+                printLoop++;
+                if (printLoop % (300/CPU_UTIL_CALCULATION_PERIOD) == 0) {
+                    Serial.printf("\n\nCPU Utilisation\n");
+                    EncoderTask.print_cpu_util();
+                    WheelActuationTask.print_cpu_util();
+                    PS4SamplingTask.print_cpu_util();
+                    CpuUtilTask.print_cpu_util();
+                    Serial.printf("\n");
+                }
             }
 
             // WebSocket Handling //
             if ((loopCount+WEBSOCKET_HANDLING_LOOP_OFFSET) % WEBSOCKET_HANDLING_MOD == 0) {
-                // Accept new WebSocket client connections
-                if (!clientConnected) {
-                    auto newClient = server.accept();
-                    if (newClient.available()) {
-                        Serial.println("New WebSocket client connected!");
-                        client = newClient;
-                        clientConnected = true;
-                    }
-                }
+                WebSocketTask.set_start_time();
 
-                // (TESTING) Send data continuously to the connected client
-                if (clientConnected && client.available()) {
-                    static int printLoop = 0;
-                    printLoop++;
-                    if (printLoop % (100/WEBSOCKET_HANDLING_PERIOD) == 0) {
-                        // Example data to send
-                        String data = "Current Time: " + String(loopCount*0.01) + " seconds";
-                        client.send(data); // Send the message
-                    }
-                }
+                // static int printLoop1 = 0;
+                // printLoop1++;
+                // if (printLoop1 % 2 == 0) Serial.printf("Test3\n");
+                // // Accept new WebSocket client connections
+                // if (!clientConnected) {
+                //     auto newClient = server.accept();
+                //     if (newClient.available()) {
+                //         Serial.println("New WebSocket client connected!");
+                //         client = newClient;
+                //         clientConnected = true;
+                //     }
+                // }
+
+                // // (TESTING) Send data continuously to the connected client
+                // if (clientConnected && client.available()) {
+                //     static int printLoop = 0;
+                //     printLoop++;
+                //     if (printLoop % (100/WEBSOCKET_HANDLING_PERIOD) == 0) {
+                //         // Example data to send
+                //         String data = "Current Time: " + String(loopCount*0.01) + " seconds";
+                //         client.send(data); // Send the message
+                //     }
+                // }
 
                 // Handle client disconnection
-                if (clientConnected && !client.available()) {
-                    Serial.println("Client disconnected!");
-                    client.close();
-                    clientConnected = false;
-                }
+                // if (clientConnected && !client.available()) {
+                //     Serial.println("Client disconnected!");
+                //     client.close();
+                //     clientConnected = false;
+                // }
+
+                WebSocketTask.set_end_time();
             }
 
             // Increment loop count
             loopCount++;
-            loopEndTime = millis();
+            mainLoopEndTime = millis();
+            send_main_loop_time(previousTime, mainLoopEndTime);
         }
     }
 }
