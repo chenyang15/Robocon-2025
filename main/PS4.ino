@@ -3,7 +3,14 @@
 #include "PS4.h"
 #include "math.h"
 
-
+#define PWM_FACTOR_CORRECTION_UL 1.0
+#define PWM_FACTOR_CORRECTION_UR 1.0
+#define PWM_FACTOR_CORRECTION_BL 1.0
+#define PWM_FACTOR_CORRECTION_BR 1.0
+#define PWM_OFFSET_UL 0.0
+#define PWM_OFFSET_UR 0.0
+#define PWM_OFFSET_BL 0.0
+#define PWM_OFFSET_BR 0.0
 
 // This callback gets called any time a new gamepad is connected.
 // Up to 4 gamepads can be connected at the same time.
@@ -256,7 +263,7 @@ void processControllers(int (&PS4StickOutputs)[4]) {
 
 // Function to convert left and right analog stick of PS4 to velocity for each wheel motors
 // Implementation method is based on this website: https://seamonsters-2605.github.io/archive/mecanum/
-void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs [4]) {
+void PS4_input_to_wheel_velocity (double (&motorPWM) [4], int PS4StickOutputs [4]) {
     // If value input is low and within deadzone, ignore it
     double stickLx = (double) check_deadzone(PS4StickOutputs[0]);
     double stickLy = (double) check_deadzone(PS4StickOutputs[1]);
@@ -274,8 +281,6 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
         rightStickActuation = -hypot(stickRx, stickRy);
     }
     
-
-    double motorPWM [4] = {0, 0, 0, 0}; // temporary variable for motor pwm
     // Compute motor speeds for omniwheel drive (Equations based on https://seamonsters-2605.github.io/archive/mecanum/)
     motorPWM[0] = leftStickActuation*sin(leftStickAngle + 0.25*PI) + rightStickActuation; // Upper-left motor
     motorPWM[1] = leftStickActuation*sin(leftStickAngle - 0.25*PI) - rightStickActuation; // Upper-right motor
@@ -293,20 +298,33 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-right motor
     if (printLoop % (300/100) == 0) Serial.printf("1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
 
+    // Motor speed calibration
+    motorPWM[0] = (motorPWM[0]*PWM_FACTOR_CORRECTION_UL);
+    motorPWM[1] = (motorPWM[1]*PWM_FACTOR_CORRECTION_UR);
+    motorPWM[2] = (motorPWM[2]*PWM_FACTOR_CORRECTION_BL);
+    motorPWM[3] = (motorPWM[3]*PWM_FACTOR_CORRECTION_BR);
+
+    if (motorPWM[0] < 0) motorPWM[0] -= PWM_OFFSET_UL; 
+    else                 motorPWM[0] += PWM_OFFSET_UL;
+
+    if (motorPWM[1] < 0) motorPWM[1] -= PWM_OFFSET_UL;   
+    else                 motorPWM[1] += PWM_OFFSET_UL;
+
+    if (motorPWM[2] < 0) motorPWM[2] -= PWM_OFFSET_UL;
+    else                 motorPWM[2] += PWM_OFFSET_UL;
+
+    if (motorPWM[3] < 0) motorPWM[3] -= PWM_OFFSET_UL;
+    else                 motorPWM[3] += PWM_OFFSET_UL;
+
+    // TODO Convert to function (Maybe)
     // Scale motor speeds down in case calculated motor speed is above 100
     double maxInput = max(max(abs(motorPWM[0]), abs(motorPWM[1])), max(abs(motorPWM[2]), abs(motorPWM[3])));
     if (maxInput > 100.0) {
         motorPWM[0] = (motorPWM[0]*100)/maxInput;
-        motorPWM[1] = (motorPWM[1]*100)/maxInput;
+        motorPWM[1] = -(motorPWM[1]*100)/maxInput;
         motorPWM[2] = (motorPWM[2]*100)/maxInput;
-        motorPWM[3] = (motorPWM[3]*100)/maxInput;
+        motorPWM[3] = -(motorPWM[3]*100)/maxInput;
     }
-    
-    // Write to output argument
-    motorPWMArg[0] =  motorPWM[0];
-    motorPWMArg[1] = -motorPWM[1]; // -ve to consider cw and ccw direction
-    motorPWMArg[2] =  motorPWM[2]; // -ve to consider cw and ccw direction
-    motorPWMArg[3] = -motorPWM[3];
 }
 
 inline int check_deadzone(int value) {
