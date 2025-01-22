@@ -34,20 +34,20 @@ void setup(){
     // Encoder setup
 	ESP32Encoder::useInternalWeakPullResistors = puType::up;    // Enable the weak pull up resistors
         
-    // WebSocket Server Setup
-    WiFi.begin(ssid, password);
-    // Wait for the ESP32 to connect to Wi-Fi
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.printf("Connecting to WiFi (%s) ...\n", ssid);
-    }
-    Serial.printf("Connected to WiFi!\nESP32 IP Address: ");
-    Serial.print(WiFi.localIP());
-    Serial.printf(":81\n");
+    // // WebSocket Server Setup
+    // WiFi.begin(ssid, password);
+    // // Wait for the ESP32 to connect to Wi-Fi
+    // while (WiFi.status() != WL_CONNECTED) {
+    //     delay(500);
+    //     Serial.printf("Connecting to WiFi (%s) ...\n", ssid);
+    // }
+    // Serial.printf("Connected to WiFi!\nESP32 IP Address: ");
+    // Serial.print(WiFi.localIP());
+    // Serial.printf(":81\n");
 
-    // Start the WebSocket server
-    server.listen(81); // Listen on port 81
-    Serial.println("WebSocket server started!");
+    // // Start the WebSocket server
+    // server.listen(81); // Listen on port 81
+    // Serial.println("WebSocket server started!");
 
     // Wait for PS4 Connection
     bool dataUpdated = BP32.update();
@@ -68,13 +68,16 @@ void loop(){
     uint32_t loopCount = 0;
     unsigned long previousTime = millis();
     unsigned long mainLoopEndTime = 0;
+    unsigned long currentTime;
+    unsigned long mainLoopStartTime;
     // forward_hard_coded_with_encoder(0,100,8000,0,20000,wheelMotors);
     // for(;;){}
     // Main loop
     for(;;) {
-        unsigned long currentTime = millis();
+        currentTime = millis();
 
         if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
+            mainLoopStartTime = micros();
             previousTime += 10;
             // PS4 Sampling //
             if ((loopCount+PS4_SAMPLING_LOOP_OFFSET) % PS4_SAMPLING_MOD == 0) {
@@ -190,8 +193,8 @@ void loop(){
 
             // Increment loop count
             loopCount++;
-            mainLoopEndTime = millis();
-            send_main_loop_time(previousTime, mainLoopEndTime);
+            mainLoopEndTime = micros();
+            send_main_loop_time(mainLoopStartTime, mainLoopEndTime);
         }
     }
 }

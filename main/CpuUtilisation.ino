@@ -7,15 +7,24 @@ CpuUtilisation::CpuUtilisation(const char* taskName)
 
 
 inline void CpuUtilisation::set_start_time() {
-    this->startTime = millis();
+    this->startTime = micros();
 }
 
 inline void CpuUtilisation::set_end_time() {
-    this->endTime = millis();
+    this->endTime = micros();
 }
 
 inline void CpuUtilisation::calculate_cpu_util() {
-    this->cpuUtil[arrayCounter] = (this->endTime - this->startTime) * 100.0 / (CpuUtilisation::mainLoopEndTime - CpuUtilisation::mainLoopStartTime);
+    unsigned long taskDuration = this->endTime - this->startTime;
+    unsigned long loopDuration = CpuUtilisation::mainLoopEndTime - CpuUtilisation::mainLoopStartTime;
+    if (loopDuration != 0) {
+        if (taskDuration != 0) 
+            this->cpuUtil[arrayCounter] = (double) taskDuration * 100.0 / loopDuration;
+        else 
+            this->cpuUtil[arrayCounter] = 0.0;
+    }
+    else this->cpuUtil[arrayCounter] = -1.0;
+    
     
     // Increment counter
     arrayCounter++;
@@ -25,7 +34,7 @@ inline void CpuUtilisation::calculate_cpu_util() {
 }
 
 inline void CpuUtilisation::print_cpu_util() {
-    char data[50];
+    char data[128];
 
     // Get maximum value in cpuUtil array
     double maxCpuUtil = this->cpuUtil[0];  // Assume the first value is the maximum
@@ -35,8 +44,8 @@ inline void CpuUtilisation::print_cpu_util() {
             maxCpuUtil = cpuUtil[i];  // Update the maximum value
         }
     }
-    //sprintf(data, "%s:\t%f%%\n", this->taskName, maxCpuUtil);
-    sprintf(data, "%s:\tTask Duration:%lu\tLoop time:%lu", this->taskName, this->endTime - this->startTime, CpuUtilisation::mainLoopEndTime-CpuUtilisation::mainLoopStartTime);
+    // sprintf(data, "%s:\t%3.2f%%\tLoop Time:%lu\n", this->taskName, maxCpuUtil, CpuUtilisation::mainLoopEndTime-CpuUtilisation::mainLoopStartTime);
+    sprintf(data, "%20s\t|EndT:%lu\t|StartT:%lu\t|L-EndT:%lu\t|L-StartT:%lu\n", this->taskName, this->endTime, this->startTime, CpuUtilisation::mainLoopEndTime, CpuUtilisation::mainLoopStartTime);
     Serial.print(data);
     // client.send(data);
 }
