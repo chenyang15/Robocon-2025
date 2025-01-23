@@ -67,22 +67,16 @@ void loop(){
     // Main loop setup
     uint32_t loopCount = 0;
     unsigned long previousTime = millis();
-    unsigned long mainLoopEndTime = 0;
     unsigned long currentTime;
-    unsigned long mainLoopStartTime;
-    // forward_hard_coded_with_encoder(0,100,8000,0,20000,wheelMotors);
-    // for(;;){}
+
     // Main loop
     for(;;) {
         currentTime = millis();
 
         if (currentTime-previousTime >= MAIN_LOOP_PERIOD) {
-            mainLoopStartTime = micros();
             previousTime += 10;
             // PS4 Sampling //
             if ((loopCount+PS4_SAMPLING_LOOP_OFFSET) % PS4_SAMPLING_MOD == 0) {
-                PS4SamplingTask.set_start_time();
-
                 bool dataUpdated = BP32.update();
                 if (dataUpdated) {
                     processControllers(PS4StickOutputs);
@@ -103,21 +97,15 @@ void loop(){
 
             // Wheel motors - Get encoder count //
             if ((loopCount+MOTOR_WHEEL_ENCODER_LOOP_OFFSET) % MOTOR_WHEEL_ENCODER_MOD == 0) {
-                EncoderTask.set_start_time();
-
                 // Update tick velocity
                 UL_Motor.update_tick_velocity();
                 UR_Motor.update_tick_velocity();
                 BL_Motor.update_tick_velocity();
                 BR_Motor.update_tick_velocity();
-
-                EncoderTask.set_end_time();
             }
 
             // Wheel motors - Actuation //
             if (loopCount % MOTOR_WHEEL_ACTUATION_MOD == 0) {
-                WheelActuationTask.set_start_time();
-                
                 // TODO: Need PWM to speed mapping
                 // Calculate PD PWM output of each wheel's motor
                 // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
@@ -126,37 +114,10 @@ void loop(){
                 // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
                 // Actuate Motor
                 ramp_wheel_PWM(wheelMotors, wheelMotorInputs);
-                
-                WheelActuationTask.set_end_time();
-            }
-
-
-            // CPU Utilization Calculation //
-            if ((loopCount+CPU_UTIL_CALCULATION_LOOP_OFFSET) % CPU_UTIL_CALCULATION_MOD == 0) {
-                CpuUtilTask.set_start_time();
-                EncoderTask.calculate_cpu_util();
-                WheelActuationTask.calculate_cpu_util();
-                PS4SamplingTask.calculate_cpu_util();
-
-                CpuUtilTask.set_end_time();
-                CpuUtilTask.calculate_cpu_util();
-
-                static int printLoop = 0;
-                printLoop++;
-                if (printLoop % (300/CPU_UTIL_CALCULATION_PERIOD) == 0) {
-                    Serial.printf("\n\nCPU Utilisation\n");
-                    EncoderTask.print_cpu_util();
-                    WheelActuationTask.print_cpu_util();
-                    PS4SamplingTask.print_cpu_util();
-                    CpuUtilTask.print_cpu_util();
-                    Serial.printf("\n");
-                }
             }
 
             // WebSocket Handling //
             if ((loopCount+WEBSOCKET_HANDLING_LOOP_OFFSET) % WEBSOCKET_HANDLING_MOD == 0) {
-                WebSocketTask.set_start_time();
-
                 // static int printLoop1 = 0;
                 // printLoop1++;
                 // if (printLoop1 % 2 == 0) Serial.printf("Test3\n");
@@ -188,13 +149,10 @@ void loop(){
                 //     clientConnected = false;
                 // }
 
-                WebSocketTask.set_end_time();
             }
 
             // Increment loop count
             loopCount++;
-            mainLoopEndTime = micros();
-            send_main_loop_time(mainLoopStartTime, mainLoopEndTime);
         }
     }
 }

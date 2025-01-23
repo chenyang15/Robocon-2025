@@ -56,9 +56,8 @@ void Motor::test_motor(double dutyCycle) {
 /* Example:
  * double targetPWM = 255;
  * for (;;) {
- * 
- * 
- * 
+ *     Motor._ramp_PWM(targetPWM);
+ *     delay(MOTOR_ACTUATION_PERIOD);
  * }
 */
 void Motor::_ramp_PWM(double motorInput) {

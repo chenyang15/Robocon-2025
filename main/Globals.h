@@ -40,13 +40,3 @@ extern const char* password;    // Replace with your Wi-Fi password
 extern WebsocketsServer server; // Create a WebSocket server
 extern WebsocketsClient client; // Store the connected client
 extern bool clientConnected;    // Track client connection status
-
-
-/*========================================================================================
-=                          CPU UTILISATION GLOBAL VARIABLES                              =
-========================================================================================*/
-extern CpuUtilisation EncoderTask;
-extern CpuUtilisation WheelActuationTask;
-extern CpuUtilisation PS4SamplingTask;
-extern CpuUtilisation CpuUtilTask;
-extern CpuUtilisation WebSocketTask;

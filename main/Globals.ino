@@ -90,13 +90,3 @@ const char* password = "verynicepassword";  // Replace with your Wi-Fi password
 WebsocketsServer server; // Create a WebSocket server
 WebsocketsClient client; // Store the connected client
 bool clientConnected = false;        // Track client connection status
-
-
-/*========================================================================================
-=                          CPU UTILISATION GLOBAL VARIABLES                              =
-========================================================================================*/
-CpuUtilisation EncoderTask          ("Task - Wheel Encoder");
-CpuUtilisation WheelActuationTask   ("Task - Wheel Actuation");
-CpuUtilisation PS4SamplingTask      ("Task - PS4 Sampling");
-CpuUtilisation CpuUtilTask          ("Task - CPU Util Calculation");
-CpuUtilisation WebSocketTask        ("Task - WebSocket Handler");
