@@ -2,7 +2,8 @@
 #include <Bluepad32.h>
 #include "PS4.h"
 #include "math.h"
-
+#include "Globals.h"
+#include "RuntimePrints.h"
 
 
 // This callback gets called any time a new gamepad is connected.
@@ -228,17 +229,18 @@ void processBalanceBoard(ControllerPtr ctl) {
     // dumpBalanceBoard(ctl);
 }
 
-void processStick(ControllerPtr ctl, int(&PS4StickOutputs)[4]) {
-    PS4StickOutputs[0] = ctl->axisX();        // (-511 - 512) left X Axis
-    PS4StickOutputs[1] = -1*(ctl->axisY());        // (-511 - 512) left Y axis
-    PS4StickOutputs[2] = ctl->axisRX();       // (-511 - 512) right X axis
-    PS4StickOutputs[3] = -1*(ctl->axisRY());       // (-511 - 512) right Y axis
+// Function to get input to global variable
+void processStick(ControllerPtr ctl) {
+    ps4StickOutputs[0] = ctl->axisX();        // (-511 - 512) left X Axis
+    ps4StickOutputs[1] = -1*(ctl->axisY());   // (-511 - 512) left Y axis
+    ps4StickOutputs[2] = ctl->axisRX();       // (-511 - 512) right X axis
+    ps4StickOutputs[3] = -1*(ctl->axisRY());  // (-511 - 512) right Y axis
 }
 
-void processControllers(int (&PS4StickOutputs)[4]) {
+void processControllers() {
     for (auto myController : myControllers) {
         if (myController && myController->isConnected() && myController->hasData()) {
-            processStick(myController, PS4StickOutputs);
+            processStick(myController);
             if (myController->isGamepad()) {
                 processGamepad(myController);
             } else if (myController->isMouse()) {
@@ -254,15 +256,15 @@ void processControllers(int (&PS4StickOutputs)[4]) {
     }
 }
 
-// Function to convert left and right analog stick of PS4 to velocity for each wheel motors
+// Function to convert left and right analog stick of ps4 to velocity for each wheel motors
 // Implementation method is based on this website: https://seamonsters-2605.github.io/archive/mecanum/
-void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs [4]) {
+void ps4_input_to_wheel_velocity () {
     // If value input is low and within deadzone, ignore it
-    double stickLx = (double) check_deadzone(PS4StickOutputs[0]);
-    double stickLy = (double) check_deadzone(PS4StickOutputs[1]);
-    double stickRx = (double) check_deadzone(PS4StickOutputs[2]);
-    double stickRy = (double) check_deadzone(PS4StickOutputs[3]);
-    
+    double stickLx = (double) check_deadzone(ps4StickOutputs[0]);
+    double stickLy = (double) check_deadzone(ps4StickOutputs[1]);
+    double stickRx = (double) check_deadzone(ps4StickOutputs[2]);
+    double stickRy = (double) check_deadzone(ps4StickOutputs[3]);
+
     // Get actuation effort and angle from left stick input
     double leftStickActuation = std::sqrt(stickLx*stickLx + stickLy*stickLy);
     double leftStickAngle = atan2(stickLy, stickLx);
@@ -273,7 +275,6 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     } else {
         rightStickActuation = -hypot(stickRx, stickRy);
     }
-    
 
     double motorPWM [4] = {0, 0, 0, 0}; // temporary variable for motor pwm
     // Compute motor speeds for omniwheel drive (Equations based on https://seamonsters-2605.github.io/archive/mecanum/)
@@ -281,17 +282,13 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
     motorPWM[1] = leftStickActuation*sin(leftStickAngle - 0.25*PI) - rightStickActuation; // Upper-right motor
     motorPWM[2] = leftStickActuation*sin(leftStickAngle - 0.25*PI) + rightStickActuation; // Bottom-left motor
     motorPWM[3] = leftStickActuation*sin(leftStickAngle + 0.25*PI) - rightStickActuation; // Bottom-right motor
-    
-    // Printing
-    static int printLoop = 0;
-    printLoop++;
 
     // Map to 0~100 PWM value, output is not clamped and can go up to 200
     motorPWM[0] = map(motorPWM[0], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-left motor
     motorPWM[1] = map(motorPWM[1], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Upper-right motor
     motorPWM[2] = map(motorPWM[2], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-left motor
     motorPWM[3] = map(motorPWM[3], -MAX_ANALOG_STICK_VALUE, MAX_ANALOG_STICK_VALUE, -100, 100); // Bottom-right motor
-    if (printLoop % (300/100) == 0) Serial.printf("1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
+    Serial.printf("1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", motorPWM[0], motorPWM[1], motorPWM[2], motorPWM[3]);
 
     // Scale motor speeds down in case calculated motor speed is above 100
     double maxInput = max(max(abs(motorPWM[0]), abs(motorPWM[1])), max(abs(motorPWM[2]), abs(motorPWM[3])));
@@ -302,11 +299,14 @@ void PS4_input_to_wheel_velocity (double (&motorPWMArg) [4], int PS4StickOutputs
         motorPWM[3] = (motorPWM[3]*100)/maxInput;
     }
     
-    // Write to output argument
-    motorPWMArg[0] =  motorPWM[0];
-    motorPWMArg[1] = -motorPWM[1]; // -ve to consider cw and ccw direction
-    motorPWMArg[2] =  motorPWM[2]; // -ve to consider cw and ccw direction
-    motorPWMArg[3] = -motorPWM[3];
+    // Wait for mutex before modifying wheelMotorps4Inputs
+    if (xSemaphoreTake(xMutex_wheelMotorPs4Inputs, portMAX_DELAY)) {
+        wheelMotorPs4Inputs[0] =  motorPWM[0];
+        wheelMotorPs4Inputs[1] = -motorPWM[1]; // -ve to consider cw and ccw direction
+        wheelMotorPs4Inputs[2] =  motorPWM[2]; // -ve to consider cw and ccw direction
+        wheelMotorPs4Inputs[3] = -motorPWM[3];
+        xSemaphoreGive(xMutex_wheelMotorPs4Inputs);  // Release the mutex after modifying the variable
+    }
 }
 
 inline int check_deadzone(int value) {
@@ -316,5 +316,5 @@ inline int check_deadzone(int value) {
     else if (value < -PS4_DEADZONE){
         return value;
     }
-    return 0;
+    else return 0;
 }

@@ -5,7 +5,7 @@ import time
 esp32_ip = "192.168.43.184:81"
 
 # Set the timeout duration in seconds
-timeout_duration = 3
+timeout_duration = 15
 
 ws = None  # Initialize WebSocket variable
 

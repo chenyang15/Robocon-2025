@@ -4,10 +4,11 @@
 #include "Utils.h"
 #include "Timing.h"
 #include "Globals.h"
+#include "RuntimePrints.h"
 
 // Constructor for class MotorControl
 Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
-    : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), currentDutyCycle(0.0) {
+    : motorDirPin(pin1), motorPwmPin(pwmPin), maxPwmIncrement(maxPwmIncrement), previousDutyCycle(0.0) {
         // Pin Initialisation
         pinMode(pin1, OUTPUT);
         
@@ -27,42 +28,38 @@ Motor::Motor(uint8_t pin1, uint8_t pwmPin, double maxPwmIncrement)
 
 // Method to set motor speed and direction
 void Motor::set_motor_PWM(double dutyCycle) {
-    int pwmValue = (int) ((dutyCycle * PWM_MAX_BIT + 0.5) / 100);
-    pwmValue = constrain(pwmValue, -PWM_MAX_BIT, PWM_MAX_BIT);
+    int pwmValue = (int) ((dutyCycle * PWM_MAX_BIT + 0.5) / 100);   // converts duty cycle to units of bits while rounds to closest integer
+    pwmValue = constrain(pwmValue, -PWM_MAX_BIT, PWM_MAX_BIT);      // limits value between maximum and minimum
        
-    if (pwmValue > 0) {            // CW
+    if (pwmValue >= 0) {            // CW
         digitalWrite(motorDirPin, LOW);
         ledcWrite(pwmChannel, abs(pwmValue));
-
-    } else if (pwmValue < 0) {     // CCW
+    } 
+    else if (pwmValue < 0) {     // CCW
         digitalWrite(motorDirPin, HIGH);
-        ledcWrite(pwmChannel, abs(pwmValue));
-    } else {
         ledcWrite(pwmChannel, abs(pwmValue));
     }
 }
 
 void Motor::stop_motor() {
     this->set_motor_PWM(0); // Set motor PWM
-    this->currentDutyCycle = 0;
+    this->previousDutyCycle = 0;
 }
 
-// (Blocking) Method to test motor
-void Motor::test_motor(double dutyCycle) {
-    this->set_motor_PWM(dutyCycle); // Set motor PWM
-}
-
-// Do not use function by itself. It should be called multiple times
+// This function applies input shaping (ramping function) to the raw input of the motor and does not actuate motor. 
+// Use set_motor_pwm() afterwards.
+// Do not use function by itself. It should be called multiple times.
 /* Example:
- * double targetPWM = 255;
+ * double targetPWM = 100;
  * for (;;) {
- *     Motor._ramp_PWM(targetPWM);
+ *     double shapedInput = Motor.ramp_PWM(targetPWM);
+ *     Motor.set_motor_pwm(shapedInput);
  *     delay(MOTOR_ACTUATION_PERIOD);
  * }
 */
-void Motor::_ramp_PWM(double motorInput) {
+double Motor::input_shape_ramp(double rawInput) {
     // Find current unclamped increment from controller output
-    double unclampedIncrement = motorInput - currentDutyCycle;
+    double unclampedIncrement = rawInput - this->previousDutyCycle;
     
     // Limit Increment
     double increment;
@@ -77,48 +74,75 @@ void Motor::_ramp_PWM(double motorInput) {
     }
 
     // Increment Duty Cycle of Motor
-    double dutyCycle = currentDutyCycle + increment;
-    this->set_motor_PWM(dutyCycle);
-    
-    // WARNING: This is an assumption that actuation is equals to input after an actuation period
-    // TODO: May requires Speed to PWM mapping in order to properly limit increment and get rid of this assumption.
-    currentDutyCycle = dutyCycle;
+    double shapedInput = this->previousDutyCycle + increment;
+    this->previousDutyCycle = shapedInput;
+
+    return shapedInput;
 }
 
 // Currently open loop
 /**
- * Accepts PWM input from controller output to actuate wheel motors
- * @param (&WheelMotors)[4] An array of wheel motor classes passed by reference.
- * @param wheelMotorPWMs PWM output of each wheel motors from the PD controller.
+ * Accepts raw PWM input from PS4 controller. Applies a ramping function and then actuate the wheel motors
+ * @param wheelMotors An array of wheel motor classes passed by reference.
+ * @param wheelMotorPs4Inputs Raw duty cycle motor inputs derived from PS4 inputs.
  * @return none
  * @warning Do not use this function for other motors other than wheel motors.
  * @note Example use case - ramp_wheel_PWM(wheelMotors, wheelMotorPWMs);
  */
-void ramp_wheel_PWM(MotorWithEncoder (&WheelMotors) [4], double (&wheelMotorInputs) [4]) {
-    // Setting up references
-    static MotorWithEncoder& UL_Motor = WheelMotors[0];
-    static MotorWithEncoder& UR_Motor = WheelMotors[1];
-    static MotorWithEncoder& BL_Motor = WheelMotors[2];
-    static MotorWithEncoder& BR_Motor = WheelMotors[3];
-    static double& ULPWM = wheelMotorInputs[0];
-    static double& URPWM = wheelMotorInputs[1];
-    static double& BLPWM = wheelMotorInputs[2];
-    static double& BRPWM = wheelMotorInputs[3];
+void actuate_motor_wheels() {
+    double shapedInputs[4] = {0, 0, 0, 0};
+
+    // Wait for mutex before modifying ps4StickInputs
+    if (xSemaphoreTake(xMutex_wheelMotorPs4Inputs, portMAX_DELAY)) {
+        // Apply input shaping (ramp function) to raw duty cycle inputs derived from PS4 inputs
+        for (int i = 0; i < 4; ++i) {
+            shapedInputs[i] = wheelMotors[i].input_shape_ramp(wheelMotorPs4Inputs[i]);
+        }
+        xSemaphoreGive(xMutex_wheelMotorPs4Inputs);  // Release the mutex after modifying the variable
+    }
     
-    UL_Motor.set_motor_PWM(ULPWM);
-    UR_Motor.set_motor_PWM(URPWM);
-    BL_Motor.set_motor_PWM(BLPWM);
-    BR_Motor.set_motor_PWM(BRPWM);
-}
+    // Apply PD to get closed loop input to motor
+    double pidOutput[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 4; ++i) {
+        pidOutput[i] = shapedInputs[i]; // Get rid of this line and uncomment line below
+        // pidOutput[i] = wheelMotors[i].PID.compute(shapedInputs[i], wheelMotors[i].measuredPwmSpeed);
+    }
 
-// Converts unit of speed from duty cycle to PWM value
-inline int duty_cycle_to_PWM(double dutyCycle) {
-    return (int) ((dutyCycle * PWM_MAX_BIT / 100.0) + 0.5);
-}
+    // Actuate each motors using shaped feedforward inputs and PID output (summed)
+    for (int i = 0; i < 4; ++i) {
+        wheelMotors[i].set_motor_PWM(pidOutput[i]);
+    }
 
-// Test sequentially of all wheel motors
-void test_all_wheel_motors(Motor* UL_Motor, Motor* UR_Motor, Motor* BL_Motor, Motor* BR_Motor) {
+    // Printing in WiFi WebSocket //
+    // Print clamped wheel inputs (unit: duty cycle)
+    {
+        #if (PRINT_WHEEL_INPUT_CLAMPED_VELOCITY == 1) 
+        char formattedMessage[128];  // Buffer to store the formatted message
+        // Create formatted message
+        snprintf(
+            formattedMessage, 
+            sizeof(formattedMessage), 
+            "Wheels' Clamped Duty Input(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", shapedInputs[0], shapedInputs[1], shapedInputs[2], shapedInputs[3]
+        );
+        // Send the formatted message to the queue
+        xQueueSend(xQueue_wifi, &formattedMessage, 15 / portTICK_PERIOD_MS);
+        #endif
+    }
 
+    // Print PID output and feedforward input (unit: duty cycle) 
+    {
+    #if (PRINT_PID_OUTPUT_PLUS_FEEDFORWARD == 1)
+        char formattedMessage[128];  // Buffer to store the formatted message
+        // Create formatted message
+        snprintf(
+            formattedMessage, 
+            sizeof(formattedMessage), 
+            "Wheels' PID and FF Duty Sum (1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", pidOutput[0], pidOutput[1], pidOutput[2], pidOutput[3]
+        );
+        // Send the formatted message to the queue
+        xQueueSend(xQueue_wifi, &formattedMessage, 15 / portTICK_PERIOD_MS);
+    #endif
+    }
 }
 
 // This is a blocking function and is used for testing and data collection purposes only. Do not use in actual code
@@ -191,7 +215,7 @@ void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4
 
             static int loopCount = 0;
             if (loopCount % 2 == 0) {
-                char buffer [50];
+                char buffer [64];
                 sprintf(buffer, "1:%d,2:%d,3:%d,4:%d\n", a, b, c, d);
                 client.send(buffer);
             }
@@ -200,75 +224,5 @@ void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4
         if (endTime - currentTime > delayMs) {
             return;
         }
-    }
-}
-// void forward_hard_coded(double initialPWM, double maxPWM, double rampTimeMs, double durationMs, Motor (&wheelMotors)[4]) {
-//     // Setting up references
-//     Motor& UL_Motor = wheelMotors[0];
-//     Motor& UR_Motor = wheelMotors[1];
-//     Motor& BL_Motor = wheelMotors[2];
-//     Motor& BR_Motor = wheelMotors[3];
-//     if (2*rampTimeMs < durationMs) {
-//         int maxIter = (int) (rampTimeMs/MOTOR_WHEEL_ACTUATION_PERIOD);
-//         double pwmIncrement = (maxPWM-initialPWM) / maxIter;
-//         double currentPWM = initialPWM;
-//         // Increasing Velocity
-//         for (int i = 0; i < maxIter; i++) {
-//             currentPWM += pwmIncrement;
-//             UL_Motor.set_motor_PWM(currentPWM);
-//             UR_Motor.set_motor_PWM(-currentPWM);
-//             BL_Motor.set_motor_PWM(-currentPWM);
-//             BR_Motor.set_motor_PWM(currentPWM);
-//             delay(MOTOR_WHEEL_ACTUATION_PERIOD);
-//         }
-
-//         // Maintain Max Velocity
-//         delay(durationMs- 2*rampTimeMs);
-
-//         // Decreasing Velocity
-//         for (int i = 0; i < maxIter; i++) {
-//             currentPWM -= pwmIncrement;
-//             UL_Motor.set_motor_PWM(currentPWM);
-//             UR_Motor.set_motor_PWM(-currentPWM);
-//             BL_Motor.set_motor_PWM(-currentPWM);
-//             BR_Motor.set_motor_PWM(currentPWM);
-//             delay(MOTOR_WHEEL_ACTUATION_PERIOD);
-//         }
-        
-//         UL_Motor.stop_motor();
-//         UR_Motor.stop_motor();
-//         BL_Motor.stop_motor();
-//         BR_Motor.stop_motor();
-//     }
-//     else {
-//         Serial.print("Ramp time should be 2x lesser than duration.\n");
-//     }
-// }
-
-// To clamp motor input calculated from PS4 analog stick. Clamping is through a ramping function.
-void input_shaping(double (&wheelMotorInputs) [4], double (&previousWheelMotorInputs) [4], MotorWithEncoder& UL_Motor) {
-    // Assume all maxPwmIncrement (defined in class) is the same across all wheel motors
-    static double maxPwmIncrement = UL_Motor.maxPwmIncrement;
-
-    // Using for loop, go through each motor inputs and apply ramping function
-    for (int i = 0; i < 4; i++) {
-        // Find current unclamped increment from controller output
-        double unclampedIncrement = wheelMotorInputs[i] - previousWheelMotorInputs[i];
-        
-        // Limit Increment
-        double increment;
-        if (unclampedIncrement > maxPwmIncrement) {
-            increment = maxPwmIncrement;
-        }
-        else if (unclampedIncrement < -maxPwmIncrement) {
-            increment = -maxPwmIncrement;
-        }
-        else {
-            increment = unclampedIncrement;
-        }
-
-        // Update variables
-        wheelMotorInputs[i] = previousWheelMotorInputs[i] + increment; // Apply ramp
-        previousWheelMotorInputs[i] = wheelMotorInputs[i];
     }
 }

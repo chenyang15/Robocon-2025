@@ -1,0 +1,8 @@
+#pragma once
+
+
+// WiFi
+#define PRINT_WHEEL_INPUT_CLAMPED_VELOCITY  1
+#define PRINT_PID_OUTPUT_PLUS_FEEDFORWARD   1
+
+// Serial

@@ -4,7 +4,6 @@
 #include "Motor.h"
 #include <Bluepad32.h>
 #include <ArduinoWebsockets.h>
-#include "CpuUtilisation.h"
 
 /*========================================================================================
 =                            WHEEL MOTOR GLOBAL VARIABLES                                =
@@ -15,7 +14,7 @@ MotorWithEncoder UL_Motor(
     MOTOR_UL_PWM,       // Motor Enable Pin
     MOTOR_UL_ENCODER_A, // Encoder Pin A
     MOTOR_UL_ENCODER_B, // Encoder Pin B
-    2.5,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
+    2.5,                // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
     0,                  // Kd
@@ -29,7 +28,7 @@ MotorWithEncoder UR_Motor(
     MOTOR_UR_PWM,       // Motor Enable Pin
     MOTOR_UR_ENCODER_A, // Encoder Pin A
     MOTOR_UR_ENCODER_B, // Encoder Pin B
-    2.5,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
+    2.5,                // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
     0,                  // Kd
@@ -43,7 +42,7 @@ MotorWithEncoder BL_Motor(
     MOTOR_BL_PWM,       // Motor Enable Pin
     MOTOR_BL_ENCODER_A, // Encoder Pin A
     MOTOR_BL_ENCODER_B, // Encoder Pin B
-    2.5,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
+    2.5,                // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
     0,                  // Kd
@@ -57,7 +56,7 @@ MotorWithEncoder BR_Motor(
     MOTOR_BR_PWM,       // Motor Enable Pin
     MOTOR_BR_ENCODER_A, // Encoder Pin A
     MOTOR_BR_ENCODER_B, // Encoder Pin B
-    2.5,                  // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
+    2.5,                // Max Pwm Increment Per Acutation Period (units: duty cycle; range: 0~100)
     10,                 // Kp
     0,                  // Ki
     0,                  // Kd
@@ -68,13 +67,12 @@ MotorWithEncoder BR_Motor(
 // An array of wheel motor of class MotorWithEncoder
 MotorWithEncoder wheelMotors [4] = {UL_Motor, UR_Motor, BL_Motor, BR_Motor};
 // Inputs for all 4 wheel motors computed from PD velocity controller.
-double wheelMotorInputs [4] = {0, 0, 0, 0};
-double previousWheelMotorInputs [4] = {0, 0, 0, 0};
+double wheelMotorPs4Inputs [4] = {0, 0, 0, 0};          // Raw velocity calculated from PS4 analog stick
 
 /*========================================================================================
-=                                PS4 GLOBAL VARIABLES                                    =
+=                                ps4 GLOBAL VARIABLES                                    =
 ========================================================================================*/
-int PS4StickOutputs [4] = {0, 0, 0, 0};
+int ps4StickOutputs [4] = {0, 0, 0, 0};
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
 

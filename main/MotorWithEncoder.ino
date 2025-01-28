@@ -20,5 +20,6 @@ inline int MotorWithEncoder::update_tick_velocity() {
     this->previousEncoderCount = this->currentEncoderCount;
     this->currentEncoderCount = (int32_t) Encoder.getCount();
     this->ticksPerSample = ((double) currentEncoderCount - (double) previousEncoderCount);
+    // this->measuredPwmSpeed = // Use pwm speed mapping to get measured speed in units of duty cycle
     return this->ticksPerSample;
 }
