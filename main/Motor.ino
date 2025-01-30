@@ -39,6 +39,9 @@ void Motor::set_motor_PWM(double dutyCycle) {
         digitalWrite(motorDirPin, HIGH);
         ledcWrite(pwmChannel, abs(pwmValue));
     }
+
+    // Update previousDutyCycle variable for next cycle
+    this->previousDutyCycle = dutyCycle;
 }
 
 void Motor::stop_motor() {
@@ -61,23 +64,16 @@ double Motor::input_shape_ramp(double rawInput) {
     // Find current unclamped increment from controller output
     double unclampedIncrement = rawInput - this->previousDutyCycle;
     
-    // Limit Increment
-    double increment;
+    // Limit Increment and return accordingly
     if (unclampedIncrement > this->maxPwmIncrement) {
-        increment = maxPwmIncrement;
+        return this->previousDutyCycle + maxPwmIncrement;
     }
-    else if (unclampedIncrement < this->maxPwmIncrement) {
-        increment = -maxPwmIncrement;
+    else if (unclampedIncrement < - this->maxPwmIncrement) {
+        return this->previousDutyCycle - maxPwmIncrement;
     }
     else {
-        increment = unclampedIncrement;
+        return this->previousDutyCycle + unclampedIncrement;
     }
-
-    // Increment Duty Cycle of Motor
-    double shapedInput = this->previousDutyCycle + increment;
-    this->previousDutyCycle = shapedInput;
-
-    return shapedInput;
 }
 
 // Currently open loop
@@ -114,35 +110,33 @@ void actuate_motor_wheels() {
     }
 
     // Printing in WiFi WebSocket //
-    // Print clamped wheel inputs (unit: duty cycle)
-    {
-        #if (PRINT_WHEEL_INPUT_CLAMPED_VELOCITY == 1) 
+    #if (PRINT_WHEEL_INPUT_CLAMPED_VELOCITY || PRINT_PID_OUTPUT_PLUS_FEEDFORWARD)
         char formattedMessage[128];  // Buffer to store the formatted message
+    #endif
+    // Print clamped wheel inputs (unit: duty cycle)
+    #if PRINT_WHEEL_INPUT_CLAMPED_VELOCITY
         // Create formatted message
         snprintf(
             formattedMessage, 
             sizeof(formattedMessage), 
-            "Wheels' Clamped Duty Input(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", shapedInputs[0], shapedInputs[1], shapedInputs[2], shapedInputs[3]
+            "Wheels' Clamped Duty Input \t(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f)", shapedInputs[0], shapedInputs[1], shapedInputs[2], shapedInputs[3]
         );
         // Send the formatted message to the queue
-        xQueueSend(xQueue_wifi, &formattedMessage, 15 / portTICK_PERIOD_MS);
-        #endif
-    }
+        xQueueSend(xQueue_wifi, &formattedMessage, 0);
+    #endif
 
     // Print PID output and feedforward input (unit: duty cycle) 
-    {
-    #if (PRINT_PID_OUTPUT_PLUS_FEEDFORWARD == 1)
-        char formattedMessage[128];  // Buffer to store the formatted message
+    #if PRINT_PID_OUTPUT_PLUS_FEEDFORWARD
         // Create formatted message
         snprintf(
-            formattedMessage, 
-            sizeof(formattedMessage), 
-            "Wheels' PID and FF Duty Sum (1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", pidOutput[0], pidOutput[1], pidOutput[2], pidOutput[3]
+            formattedMessage,
+            sizeof(formattedMessage),
+            "Wheels' PID and FF Duty Sum\t(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f)", pidOutput[0], pidOutput[1], pidOutput[2], pidOutput[3]
         );
+        // Serial.print(formattedMessage2);
         // Send the formatted message to the queue
-        xQueueSend(xQueue_wifi, &formattedMessage, 15 / portTICK_PERIOD_MS);
+        xQueueSend(xQueue_wifi, &formattedMessage, 0);
     #endif
-    }
 }
 
 // This is a blocking function and is used for testing and data collection purposes only. Do not use in actual code
