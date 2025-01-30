@@ -1,6 +1,5 @@
 #include <Arduino.h>
-// Initialize global variables
-#include "Globals.h"      // Note: Variables in here can be accessed anywhere in main file
+#include "Globals.h"      // Initialize global variables (Note: Variables in here can be accessed anywhere in any file)
 #include "RuntimePrints.h"
 #include "PinAssignment.h"
 #include "Motor.h"
@@ -9,32 +8,47 @@
 #include "PS4.h"
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 #include "Wire.h"
+#include "CpuUtilization.h"
 #define SLAVE_ADDR_1 0x10
 #define SLAVE_ADDR_2 0x20
 
-/* Currently implementing:
- * - RTOS (priority, cpu usage, stack usage)
- * Next to be implemented:
- * - sending data to queue and printing through WiFi
+/* 
  * To be tested:
- * - Pin assignment
+ * - Pin assignment and open wheel motion on robot
+ * 
+ * Last implemented and tested:
+ * - RTOS (priority, cpu usage, stack usage)
+ * - sending data to queue and printing through WiFi
  * 
 */
 
-// #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()  // Initialize your timer
-// #define portGET_RUN_TIME_COUNTER_VALUE() (TIMx->CNT) // Read timer value
-
-// Define a struct for the data packet with const char* for data
-struct DataPacket {
+// Define a struct for the I2C data packet with const char* for data
+struct I2cDataPacket {
     uint8_t slaveAddress;
     const char* data;
 };
+
+// Global tasks names
+const char* task1Name = "Task - PS4 Sampling";      // PS4 Sampling
+const char* task2Name = "Task - Update Encoders";   // Update Wheel Encoders
+const char* task3Name = "Task - Actuate Motors";    // Actuate Wheel Motors
+const char* task4Name = "Task - WebSocket Handler"; // WebSocket Handler
+const char* task5Name = "Task - Send WiFi Data";    // Send Data to WiFi
+const char* task6Name = "Task - Send I2C Data";     // Send Data to I2C
+
+// Global class variable for calculating CPU Utilization for each task
+TaskCpuUtilization UtilPs4Sampling      (PS4_SAMPLING_PERIOD,           task1Name);
+TaskCpuUtilization UtilUpdateEncoders   (MOTOR_WHEEL_ENCODER_PERIOD,    task2Name);
+TaskCpuUtilization UtilActuateMotors    (MOTOR_WHEEL_ACTUATION_PERIOD,  task3Name);
+TaskCpuUtilization UtilWebSocketHandler (WEBSOCKET_HANDLING_PERIOD,     task4Name);
+TaskCpuUtilization UtilSendToWifi       (SEND_TO_WIFI_PERIOD,           task5Name);
+TaskCpuUtilization UtilSendToI2c        (SEND_TO_I2C_PERIOD,            task6Name);
 
 // Function prototypes for setup functions
 void websocket_setup();
 void ps4_setup();
 
-// Task function protoyypes
+// Function prototypes for tasks
 void task_ps4_sampling      (void *pvParameters);
 void task_update_encoders   (void *pvParameters);
 void task_actuate_motors    (void *pvParameters);
@@ -50,9 +64,11 @@ TaskHandle_t xTask_WebsocketHandler;
 TaskHandle_t xTask_SendToWiFi;
 TaskHandle_t xTask_SendToI2C;
 
+// Semaphore Handles
 SemaphoreHandle_t xMutex_wheelMotorPs4Inputs;
 SemaphoreHandle_t bsem_;
 
+// Queue Handles
 QueueHandle_t xQueue_wifi;
 QueueHandle_t xQueue_i2c;
 
@@ -61,8 +77,14 @@ void websocket_setup() {
     WiFi.begin(ssid, password);
     // Wait for the ESP32 to connect to Wi-Fi
     while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
+        static int retryCount = 0;
         Serial.printf("Connecting to WiFi (%s) ...\n", ssid);
+        retryCount++;
+        if (retryCount >= 10) {
+            Serial.println("Can't connect to WiFi. Restarting.");
+            ESP.restart(); // Restart ESP32 if can't connect to WiFi after 10 tries
+        }
+        delay(500);
     }
     Serial.printf("Connected to WiFi!\nESP32 IP Address: ");
     Serial.print(WiFi.localIP());
@@ -75,17 +97,17 @@ void websocket_setup() {
 
 // PS4 Controller Connection Setup
 void ps4_setup() {
-    Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
-    const uint8_t* addr = BP32.localBdAddress();
-    Serial.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+    // Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
+    // const uint8_t* addr = BP32.localBdAddress();
+    // Serial.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
     // Setup the Bluepad32 callbacks
     BP32.setup(&onConnectedController, &onDisconnectedController);
     // Wait for ps4 Connection
     bool dataUpdated = BP32.update();
-    while (!dataUpdated) {
-        dataUpdated = BP32.update();
-        delay(250);
-    }
+    // while (!dataUpdated) {
+    //     dataUpdated = BP32.update();
+    //     delay(250);
+    // }
 }
 
 void setup(){
@@ -119,81 +141,28 @@ void setup(){
 
     // Create queues
     // Note: These queues are declared in Globals.h so that they can be accessed in any file.
-    xQueue_wifi = xQueueCreate(10, sizeof(char*));  // Create a queue for WiFi messages to be sent
+    xQueue_wifi = xQueueCreate(10, BUFFER_SIZE);  // Create a queue for WiFi messages to be sent
     xQueue_i2c = xQueueCreate(10, sizeof(uint8_t));  // Create a queue for I2C messages to be sent
     // Check creation status for each queue
     check_queue_creation(creationStatus, xQueue_wifi, "Queue - Send to WiFi");
     check_queue_creation(creationStatus, xQueue_i2c, "Queue - Send to I2C");
 
     // Create tasks
-    taskCreation_ps4Sampling        = xTaskCreate(
-        task_ps4_sampling,              // Task function
-        "Task - PS4 Sampling",          // Task name
-        4096,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_Ps4Sampling              // Task handle
-    );
-    print_free_stack(xTask_Ps4Sampling, "Task - PS4 Sampling");
-
-    taskCreation_UpdateEncoders     = xTaskCreate(
-        task_update_encoders,           // Task function
-        "Task - Update Encoders",       // Task name
-        2048,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_UpdateEncoders           // Task handle
-    );
-    print_free_stack(xTask_UpdateEncoders, "Task - Update Encoders");
-
-    taskCreation_ActuateMotors      = xTaskCreate(
-        task_actuate_motors,            // Task function
-        "Task - Actuate Motors",        // Task name
-        4096,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_ActuateMotors            // Task handle
-    );
-    print_free_stack(xTask_ActuateMotors, "Task - Actuate Motors");
-
-    taskCreation_WebsocketHandler   = xTaskCreate(
-        task_websocket_handler,         // Task function
-        "Task - WebSocket Handler",     // Task name
-        4096,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_WebsocketHandler         // Task handle
-    );
-    print_free_stack(xTask_WebsocketHandler, "Task - WebSocket Handler");
-
-    taskCreation_SendToWiFi         = xTaskCreate(
-        task_send_to_wifi,              // Task function
-        "Task - Send Data",             // Task name
-        2048,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_SendToWiFi               // Task handle
-    );
-    print_free_stack(xTask_SendToWiFi, "Task - Send Data");
-
-    taskCreation_SendToI2C         = xTaskCreate(
-        task_send_to_i2c,               // Task function
-        "Task - Send I2C Data",         // Task name
-        2048,                           // Stack size (bytes)
-        NULL,                           // Parameters
-        1,                              // Priority
-        &xTask_SendToI2C                // Task handle
-    );
-    print_free_stack(xTask_SendToI2C, "Task - Send I2C Data");
+    // Arguments: Task function, Task name, Stack size (bytes), Parameters, Priority, Task handle
+    taskCreation_ps4Sampling        = xTaskCreate(task_ps4_sampling,        "Task - PS4 Sampling",      4096, NULL, 3, &xTask_Ps4Sampling);
+    taskCreation_UpdateEncoders     = xTaskCreate(task_update_encoders,     "Task - Update Encoders",   2048, NULL, 4, &xTask_UpdateEncoders);
+    taskCreation_ActuateMotors      = xTaskCreate(task_actuate_motors,      "Task - Actuate Motors",    4096, NULL, 5, &xTask_ActuateMotors);
+    taskCreation_WebsocketHandler   = xTaskCreate(task_websocket_handler,   "Task - WebSocket Handler", 3072, NULL, 2, &xTask_WebsocketHandler);
+    taskCreation_SendToWiFi         = xTaskCreate(task_send_to_wifi,        "Task - Send Data",         2048, NULL, 2, &xTask_SendToWiFi);
+    taskCreation_SendToI2C          = xTaskCreate(task_send_to_i2c,         "Task - Send I2C Data",     2048, NULL, 2, &xTask_SendToI2C);
 
     // Check creation status for each task
-    check_task_creation(creationStatus, taskCreation_ps4Sampling,   "Task - PS4 Sampling");
-    check_task_creation(creationStatus, taskCreation_UpdateEncoders, "Task - Update Encoders");
-    check_task_creation(creationStatus, taskCreation_ActuateMotors, "Task - Actuate Motors");
-    check_task_creation(creationStatus, taskCreation_WebsocketHandler, "Task - WebSocket Handler");
-    check_task_creation(creationStatus, taskCreation_SendToWiFi, "Task - Send to WiFi");
-    check_task_creation(creationStatus, taskCreation_SendToI2C, "Task - Send to I2C");
-
+    check_task_creation(creationStatus, taskCreation_ps4Sampling,       task1Name);
+    check_task_creation(creationStatus, taskCreation_UpdateEncoders,    task2Name);
+    check_task_creation(creationStatus, taskCreation_ActuateMotors,     task3Name);
+    check_task_creation(creationStatus, taskCreation_WebsocketHandler,  task4Name);
+    check_task_creation(creationStatus, taskCreation_SendToWiFi,        task5Name);
+    check_task_creation(creationStatus, taskCreation_SendToI2C,         task6Name);
 
     // If any of the semaphore/mutex and queue has failed to create, exit
     if (creationStatus == 0) {
@@ -205,12 +174,35 @@ void setup(){
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);
     Serial.println("Starting program.");
-    // delay(500);
-    // digitalWrite(LED_PIN, LOW);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    digitalWrite(LED_PIN, LOW);
+
+    // Check free stack of each tasks
+    #if PRINT_FREE_STACK_ON_EACH_TASKS
+    vTaskDelay(pdMS_TO_TICKS(4000)); // delay to let tasks run before checking free stack on each tasks
+    print_free_stack(xTask_Ps4Sampling, task1Name);
+    print_free_stack(xTask_UpdateEncoders, task2Name);
+    print_free_stack(xTask_ActuateMotors, task3Name);
+    print_free_stack(xTask_WebsocketHandler, task4Name);
+    print_free_stack(xTask_SendToWiFi, task5Name);
+    print_free_stack(xTask_SendToI2C, task6Name);
+    Serial.printf("Free heap size: %d bytes\n", esp_get_free_heap_size());  
+    Serial.printf("Minimum free heap ever: %d bytes\n", esp_get_minimum_free_heap_size()); 
+    #endif
 }
 
-// Nothing should be in this loop.
-void loop() {}
+// Loop is also treated as a task. Use it to get CPU utilization.
+void loop() {
+    #if PRINT_CPU_UTILIZATION
+    UtilPs4Sampling.send_util_to_wifi();
+    UtilUpdateEncoders.send_util_to_wifi();
+    UtilActuateMotors.send_util_to_wifi();
+    UtilWebSocketHandler.send_util_to_wifi();
+    // UtilSendToWifi.send_util_to_wifi();
+    UtilSendToI2c.send_util_to_wifi();
+    #endif
+    vTaskDelay(pdMS_TO_TICKS(CPU_UTIL_CALCULATION_PERIOD));
+}
 
 // Task - Get input from PS4
 void task_ps4_sampling(void *pvParameters) {
@@ -218,6 +210,8 @@ void task_ps4_sampling(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     bool dataUpdated;
     for (;;) {
+        UtilPs4Sampling.set_start_time();
+
         dataUpdated = BP32.update();
         if (dataUpdated) {
             processControllers();
@@ -225,6 +219,7 @@ void task_ps4_sampling(void *pvParameters) {
         // Calculate motor input based on ps4 analog stick and modifies wheelMotorps4Inputs. Does not include ramp function
         ps4_input_to_wheel_velocity();
 
+        UtilPs4Sampling.set_end_time();
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -235,11 +230,15 @@ void task_update_encoders(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ENCODER_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        UtilUpdateEncoders.set_start_time();
+
         // Update tick velocity
         UL_Motor.update_tick_velocity();
         UR_Motor.update_tick_velocity();
         BL_Motor.update_tick_velocity();
         BR_Motor.update_tick_velocity();
+
+        UtilUpdateEncoders.set_end_time();
 
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -251,6 +250,8 @@ void task_actuate_motors(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ACTUATION_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        UtilActuateMotors.set_start_time();
+
         // TODO: Need PWM to speed mapping
         // Calculate PD PWM output of each wheel's motor
         // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
@@ -259,6 +260,8 @@ void task_actuate_motors(void *pvParameters) {
         // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
         // Actuate Wheel Motor
         actuate_motor_wheels();
+
+        UtilActuateMotors.set_end_time();
 
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -270,6 +273,7 @@ void task_websocket_handler(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(WEBSOCKET_HANDLING_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        UtilWebSocketHandler.set_start_time();
         // Accept new WebSocket client connections
         if (!clientConnected) {
             auto newClient = server.accept();
@@ -297,7 +301,9 @@ void task_websocket_handler(void *pvParameters) {
             clientConnected = false;
         }
 
-        // // Delay until the next execution time
+        UtilWebSocketHandler.set_end_time();
+
+        // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -306,13 +312,18 @@ void task_websocket_handler(void *pvParameters) {
 void task_send_to_wifi(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(SEND_TO_WIFI_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    char *message;
+    char message [128];
     for (;;) {
+        UtilSendToWifi.set_start_time();
         // Wait until there is data in the WiFi queue
         if (xQueueReceive(xQueue_wifi, &message, portMAX_DELAY)) {
-            if (clientConnected && client.available()) Serial.print(message);
-            // client.send(message);  // Send the received message to WebSocket server (Important: make sure 'message' is null-terminated)
+            // If client is connected to WebSocket server
+            if (clientConnected && client.available())
+                client.send(message);  // Send the received message to WebSocket server (Important: make sure 'message' is null-terminated)
         }
+
+        UtilSendToWifi.set_end_time();
+
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -322,8 +333,9 @@ void task_send_to_wifi(void *pvParameters) {
 void task_send_to_i2c(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(SEND_TO_I2C_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    DataPacket packet;
+    I2cDataPacket packet;
     for (;;) {
+        UtilSendToI2c.set_start_time();
         // // Wait until there is data in the I2C queue
         // if (xQueueReceive(xQueue_i2c, &packet, portMAX_DELAY) == pdPASS) {
         //     Wire.beginTransmission(packet.slaveAddress);    // Set to send to specified slave
@@ -335,6 +347,9 @@ void task_send_to_i2c(void *pvParameters) {
         //         Serial.printf("Failed to send data.\n");
         //     }
         // }
+
+        UtilSendToI2c.set_end_time();
+
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
