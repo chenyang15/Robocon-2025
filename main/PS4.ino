@@ -5,6 +5,64 @@
 #include "Globals.h"
 #include "RuntimePrints.h"
 
+// Global variable array. For each index corresponding to each button press, it specifies which ESP32 the I2C message should be sent to
+uint8_t I2cButtonSendingAddress [SLAVE_PS4_BUTTON_COUNTS] = 
+{
+    SLAVE_ADDR_ESP1,    // Button X
+    SLAVE_ADDR_ESP2,    // Button Square
+    SLAVE_ADDR_ESP1,    // Button Triangle
+    SLAVE_ADDR_ESP2,    // Button Circle
+    SLAVE_ADDR_ESP1,    // Button L1
+    SLAVE_ADDR_ESP2,    // Button L2
+    SLAVE_ADDR_ESP1,    // Button R1
+    SLAVE_ADDR_ESP2,    // Button R2
+};
+
+// Constructor for class Ps4ToI2cBridge
+Ps4ToI2cBridge::Ps4ToI2cBridge() {
+    // Initialize arrays to 0
+    memset(previousButtonStates, 0, sizeof(previousButtonStates));
+    memset(currentButtonStates, 0, sizeof(currentButtonStates));
+}
+
+// Updates a specified PS4 button state
+inline void Ps4ToI2cBridge::update_button_state(uint8_t &value, Ps4ButtonId buttonIndex) {
+    previousButtonStates[buttonIndex] = currentButtonStates[buttonIndex];
+    currentButtonStates[buttonIndex] = value;
+}
+
+// Notify any changed button states to specified ESP32 through I2C
+inline void Ps4ToI2cBridge::send_to_i2c() {
+    // Iterate through each button the arrays to check if current state differs from the previous state
+    for (int i = 0; i < SLAVE_PS4_BUTTON_COUNTS; ++i) {
+        if (currentButtonStates[i] != previousButtonStates[i]) {
+            // I2C struct to send to RTOS queue
+            I2cDataPacket packet;
+            // Set ESP32 address of packet for the I2C message to send to
+            packet.slaveAddress = I2cButtonSendingAddress[i];
+            // Create formatted message
+            snprintf(
+                packet.message,
+                BUFFER_SIZE,
+                "%s:%d\n", buttonNames[i], currentButtonStates[i]
+            );
+            // Send the packet to the queue
+            BaseType_t result = xQueueSend(xQueue_i2c, &packet, 0);
+            
+            // Check if the item was failed to be sent
+            if (result != pdPASS) {
+                // Create formatted error message
+                snprintf(
+                    packet.message,
+                    BUFFER_SIZE,
+                    "Fail to send data '%s:%d' to I2C queue", buttonNames[i], currentButtonStates[i]
+                );
+                // Send the error message to the WiFi queue
+                xQueueSend(xQueue_wifi, &packet.message, 0);
+            }
+        }
+    }
+}
 
 // This callback gets called any time a new gamepad is connected.
 // Up to 4 gamepads can be connected at the same time.

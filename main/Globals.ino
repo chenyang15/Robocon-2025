@@ -70,7 +70,7 @@ MotorWithEncoder wheelMotors [4] = {UL_Motor, UR_Motor, BL_Motor, BR_Motor};
 double wheelMotorPs4Inputs [4] = {0, 0, 0, 0};          // Raw velocity calculated from PS4 analog stick
 
 /*========================================================================================
-=                                ps4 GLOBAL VARIABLES                                    =
+=                                PS4 GLOBAL VARIABLES                                    =
 ========================================================================================*/
 int ps4StickOutputs [4] = {0, 0, 0, 0};
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];

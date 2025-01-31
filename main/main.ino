@@ -9,24 +9,13 @@
 #include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
 #include "Wire.h"
 #include "CpuUtilization.h"
-#define SLAVE_ADDR_1 0x10
-#define SLAVE_ADDR_2 0x20
 
 /* 
  * To be tested:
- * - Pin assignment and open wheel motion on robot
- * 
- * Last implemented and tested:
- * - RTOS (priority, cpu usage, stack usage)
- * - sending data to queue and printing through WiFi
+ * - Pin assignment and open loop wheel motion on robot
+ * - Communication of PS4 button presses through I2C
  * 
 */
-
-// Define a struct for the I2C data packet with const char* for data
-struct I2cDataPacket {
-    uint8_t slaveAddress;
-    const char* data;
-};
 
 // Global tasks names
 const char* task1Name = "Task - PS4 Sampling";      // PS4 Sampling
@@ -120,7 +109,7 @@ void setup(){
     // Setup
     websocket_setup();  // WebSocket Server Setup
     ps4_setup();        // PS4 Controller Setup
-    // Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);  // Initialize I2C
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);  // Initialize I2C
     
     // Task creation result variables
     BaseType_t taskCreation_ps4Sampling;
@@ -198,7 +187,7 @@ void loop() {
     UtilUpdateEncoders.send_util_to_wifi();
     UtilActuateMotors.send_util_to_wifi();
     UtilWebSocketHandler.send_util_to_wifi();
-    // UtilSendToWifi.send_util_to_wifi();
+    UtilSendToWifi.send_util_to_wifi();
     UtilSendToI2c.send_util_to_wifi();
     #endif
     vTaskDelay(pdMS_TO_TICKS(CPU_UTIL_CALCULATION_PERIOD));
@@ -210,15 +199,16 @@ void task_ps4_sampling(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     bool dataUpdated;
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilPs4Sampling.set_start_time();
 
+        // Get new PS4 data
         dataUpdated = BP32.update();
-        if (dataUpdated) {
-            processControllers();
-        }
+        if (dataUpdated) processControllers();
         // Calculate motor input based on ps4 analog stick and modifies wheelMotorps4Inputs. Does not include ramp function
         ps4_input_to_wheel_velocity();
 
+        // Set task end time (to calculate for CPU Utilization)
         UtilPs4Sampling.set_end_time();
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -230,16 +220,17 @@ void task_update_encoders(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ENCODER_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilUpdateEncoders.set_start_time();
 
-        // Update tick velocity
+        // Update tick velocity for each wheel motors
         UL_Motor.update_tick_velocity();
         UR_Motor.update_tick_velocity();
         BL_Motor.update_tick_velocity();
         BR_Motor.update_tick_velocity();
 
+        // Set task end time (to calculate for CPU Utilization)
         UtilUpdateEncoders.set_end_time();
-
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -250,6 +241,7 @@ void task_actuate_motors(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ACTUATION_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilActuateMotors.set_start_time();
 
         // TODO: Need PWM to speed mapping
@@ -261,8 +253,8 @@ void task_actuate_motors(void *pvParameters) {
         // Actuate Wheel Motor
         actuate_motor_wheels();
 
+        // Set task end time (to calculate for CPU Utilization)
         UtilActuateMotors.set_end_time();
-
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -273,7 +265,9 @@ void task_websocket_handler(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(WEBSOCKET_HANDLING_PERIOD); // Set task running frequency
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilWebSocketHandler.set_start_time();
+
         // Accept new WebSocket client connections
         if (!clientConnected) {
             auto newClient = server.accept();
@@ -283,17 +277,6 @@ void task_websocket_handler(void *pvParameters) {
                 clientConnected = true;
             }
         }
-
-        // // (TESTING) Send data continuously to the connected client
-        // if (clientConnected && client.available()) {
-        //     static int printLoop = 0;
-        //     printLoop++;
-            
-        //     // Example data to send
-        //     String data = "Current Time: " + String(printLoop * 1/WEBSOCKET_HANDLING_PERIOD) + " seconds";
-        //     client.send(data); // Send the message
-        // }
-
         // Handle client disconnection
         if (clientConnected && !client.available()) {
             Serial.println("Client disconnected!");
@@ -301,8 +284,8 @@ void task_websocket_handler(void *pvParameters) {
             clientConnected = false;
         }
 
+        // Set task end time (to calculate for CPU Utilization)
         UtilWebSocketHandler.set_end_time();
-
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -314,7 +297,9 @@ void task_send_to_wifi(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     char message [128];
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilSendToWifi.set_start_time();
+
         // Wait until there is data in the WiFi queue
         if (xQueueReceive(xQueue_wifi, &message, portMAX_DELAY)) {
             // If client is connected to WebSocket server
@@ -322,8 +307,8 @@ void task_send_to_wifi(void *pvParameters) {
                 client.send(message);  // Send the received message to WebSocket server (Important: make sure 'message' is null-terminated)
         }
 
+        // Set task end time (to calculate for CPU Utilization)
         UtilSendToWifi.set_end_time();
-
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -335,21 +320,23 @@ void task_send_to_i2c(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
     I2cDataPacket packet;
     for (;;) {
+        // Set task start time (to calculate for CPU Utilization)
         UtilSendToI2c.set_start_time();
-        // // Wait until there is data in the I2C queue
-        // if (xQueueReceive(xQueue_i2c, &packet, portMAX_DELAY) == pdPASS) {
-        //     Wire.beginTransmission(packet.slaveAddress);    // Set to send to specified slave
-        //     Wire.write(packet.data);    // Send data
-        //     if (Wire.endTransmission() == 0) {
-        //         Serial.printf("Data sent successfully to slave.\n");
-        //     } 
-        //     else {
-        //         Serial.printf("Failed to send data.\n");
-        //     }
-        // }
 
+        // Wait until there is data in the I2C queue
+        if (xQueueReceive(xQueue_i2c, &packet, portMAX_DELAY) == pdPASS) {
+            Wire.beginTransmission(packet.slaveAddress);    // Set to send to specified slave
+            Wire.write(packet.message);    // Send data
+            if (Wire.endTransmission() == 0) {
+                Serial.printf("Data sent successfully to slave.\n");
+            } 
+            else {
+                Serial.printf("Failed to send data.\n");
+            }
+        }
+
+        // Set task end time (to calculate for CPU Utilization)
         UtilSendToI2c.set_end_time();
-
         // Delay until the next execution time
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }

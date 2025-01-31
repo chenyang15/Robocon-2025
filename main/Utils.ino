@@ -38,7 +38,7 @@ inline void check_queue_creation(bool creationStatus, QueueHandle_t queue, const
     }
 }
 
-// Checking the stack watermark
+// Checking and printing free stack (available from allocated amount) of each task
 inline void print_free_stack(TaskHandle_t taskHandle, const char* taskName) {
     if (taskHandle != NULL) {
         UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(taskHandle);

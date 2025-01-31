@@ -4,6 +4,10 @@
 #include "Motor.h"
 #include <Bluepad32.h>
 #include <ArduinoWebsockets.h>
+#include "RuntimePrints.h"
+
+#define SLAVE_ADDR_ESP1 0x10
+#define SLAVE_ADDR_ESP2 0x20
 
 /*========================================================================================
 =                            WHEEL MOTOR GLOBAL VARIABLES                                =
@@ -35,6 +39,15 @@ extern const char* password;    // Replace with your Wi-Fi password
 extern WebsocketsServer server; // Create a WebSocket server
 extern WebsocketsClient client; // Store the connected client
 extern bool clientConnected;    // Track client connection status
+
+/*========================================================================================
+=                       I2C DATA TRANSMISSION GLOBAL VARIABLES                           =
+========================================================================================*/
+// Define a struct for the I2C data packet with const char* for data
+struct I2cDataPacket {
+    uint8_t slaveAddress;
+    char message[BUFFER_SIZE];
+};
 
 /*========================================================================================
 =                                         RTOS                                           =

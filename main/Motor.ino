@@ -111,7 +111,7 @@ void actuate_motor_wheels() {
 
     // Printing in WiFi WebSocket //
     #if (PRINT_WHEEL_INPUT_CLAMPED_VELOCITY || PRINT_PID_OUTPUT_PLUS_FEEDFORWARD)
-        char formattedMessage[128];  // Buffer to store the formatted message
+        char formattedMessage[BUFFER_SIZE];  // Buffer to store the formatted message
     #endif
     // Print clamped wheel inputs (unit: duty cycle)
     #if PRINT_WHEEL_INPUT_CLAMPED_VELOCITY
