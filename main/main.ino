@@ -11,7 +11,16 @@
 #include "CpuUtilization.h"
 
 /* 
+ * To be implemented:
+ * - Collecting data and applying values to software compensation code for intertia imbalance of the wheels
+ * - Split up PID code for better debugging. (include prints etc.)
+ * 
+ * Last changed:
+ * - Implementation of software compensation code for intertia imbalance of the wheels (no callibration values added yet)
+ * - Changed current priority assignments for each tasks (I was under the wrong assumption that a higher numerical value means a more critical priority)
+ * 
  * To be tested:
+ * - Task priority assignment test
  * - Pin assignment and open loop wheel motion on robot
  * - Communication of PS4 button presses through I2C
  * 
@@ -137,13 +146,13 @@ void setup(){
     check_queue_creation(creationStatus, xQueue_i2c, "Queue - Send to I2C");
 
     // Create tasks
-    // Arguments: Task function, Task name, Stack size (bytes), Parameters, Priority, Task handle
-    taskCreation_ps4Sampling        = xTaskCreate(task_ps4_sampling,        "Task - PS4 Sampling",      4096, NULL, 3, &xTask_Ps4Sampling);
-    taskCreation_UpdateEncoders     = xTaskCreate(task_update_encoders,     "Task - Update Encoders",   2048, NULL, 4, &xTask_UpdateEncoders);
+    // Arguments: Task function, Task name, Stack size (bytes), Parameters, Priority (lower numerical value means a more critical priority), Task handle
+    taskCreation_ps4Sampling        = xTaskCreate(task_ps4_sampling,        "Task - PS4 Sampling",      4096, NULL, 7, &xTask_Ps4Sampling);
+    taskCreation_UpdateEncoders     = xTaskCreate(task_update_encoders,     "Task - Update Encoders",   2048, NULL, 6, &xTask_UpdateEncoders);
     taskCreation_ActuateMotors      = xTaskCreate(task_actuate_motors,      "Task - Actuate Motors",    4096, NULL, 5, &xTask_ActuateMotors);
-    taskCreation_WebsocketHandler   = xTaskCreate(task_websocket_handler,   "Task - WebSocket Handler", 3072, NULL, 2, &xTask_WebsocketHandler);
-    taskCreation_SendToWiFi         = xTaskCreate(task_send_to_wifi,        "Task - Send Data",         2048, NULL, 2, &xTask_SendToWiFi);
-    taskCreation_SendToI2C          = xTaskCreate(task_send_to_i2c,         "Task - Send I2C Data",     2048, NULL, 2, &xTask_SendToI2C);
+    taskCreation_WebsocketHandler   = xTaskCreate(task_websocket_handler,   "Task - WebSocket Handler", 3072, NULL, 15, &xTask_WebsocketHandler);
+    taskCreation_SendToWiFi         = xTaskCreate(task_send_to_wifi,        "Task - Send Data",         2048, NULL, 14, &xTask_SendToWiFi);
+    taskCreation_SendToI2C          = xTaskCreate(task_send_to_i2c,         "Task - Send I2C Data",     2048, NULL, 15, &xTask_SendToI2C);
 
     // Check creation status for each task
     check_task_creation(creationStatus, taskCreation_ps4Sampling,       task1Name);
