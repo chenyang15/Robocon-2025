@@ -365,33 +365,33 @@ void ps4_input_to_wheel_velocity () {
     motorPWM[3] = (motorPWM[3]*PWM_FACTOR_CORRECTION_BR);
 
     if (motorPWM[0] < 0) motorPWM[0] -= PWM_OFFSET_UL; 
-    else                 motorPWM[0] += PWM_OFFSET_UL;
+    else motorPWM[0] += PWM_OFFSET_UL;
 
     if (motorPWM[1] < 0) motorPWM[1] -= PWM_OFFSET_UL;   
-    else                 motorPWM[1] += PWM_OFFSET_UL;
+    else motorPWM[1] += PWM_OFFSET_UL;
 
     if (motorPWM[2] < 0) motorPWM[2] -= PWM_OFFSET_UL;
-    else                 motorPWM[2] += PWM_OFFSET_UL;
+    else motorPWM[2] += PWM_OFFSET_UL;
 
     if (motorPWM[3] < 0) motorPWM[3] -= PWM_OFFSET_UL;
-    else                 motorPWM[3] += PWM_OFFSET_UL;
+    else motorPWM[3] += PWM_OFFSET_UL;
 
     // TODO Convert to function (Maybe)
     // Scale motor speeds down in case calculated motor speed is above 100
     double maxInput = max(max(abs(motorPWM[0]), abs(motorPWM[1])), max(abs(motorPWM[2]), abs(motorPWM[3])));
     if (maxInput > 100.0) {
-        motorPWM[0] = (motorPWM[0]*100)/maxInput;
-        motorPWM[1] = -(motorPWM[1]*100)/maxInput;
-        motorPWM[2] = (motorPWM[2]*100)/maxInput;
+        motorPWM[0] =  (motorPWM[0]*100)/maxInput;
+        motorPWM[1] = -(motorPWM[1]*100)/maxInput; // -ve to consider cw and ccw direction
+        motorPWM[2] =  (motorPWM[2]*100)/maxInput; // -ve to consider cw and ccw direction
         motorPWM[3] = -(motorPWM[3]*100)/maxInput;
     }
     
     // Wait for mutex before modifying wheelMotorps4Inputs
     if (xSemaphoreTake(xMutex_wheelMotorPs4Inputs, portMAX_DELAY)) {
-        wheelMotorPs4Inputs[0] =  motorPWM[0];
-        wheelMotorPs4Inputs[1] = -motorPWM[1]; // -ve to consider cw and ccw direction
-        wheelMotorPs4Inputs[2] =  motorPWM[2]; // -ve to consider cw and ccw direction
-        wheelMotorPs4Inputs[3] = -motorPWM[3];
+        wheelMotorPs4Inputs[0] = motorPWM[0];
+        wheelMotorPs4Inputs[1] = motorPWM[1];
+        wheelMotorPs4Inputs[2] = motorPWM[2];
+        wheelMotorPs4Inputs[3] = motorPWM[3];
         xSemaphoreGive(xMutex_wheelMotorPs4Inputs);  // Release the mutex after modifying the variable
     }
 }
