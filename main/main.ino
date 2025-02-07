@@ -1,352 +1,316 @@
-#include <Arduino.h>
-#include "Globals.h"      // Initialize global variables (Note: Variables in here can be accessed anywhere in any file)
-#include "RuntimePrints.h"
-#include "PinAssignment.h"
-#include "Motor.h"
-#include "Utils.h"
-#include "Timing.h"
-#include "PS4.h"
-#include <ESP32Encoder.h> //https://github.com/madhephaestus/ESP32Encoder
-#include "Wire.h"
-#include "CpuUtilization.h"
+#include <Bluepad32.h>
+// #define LENA 25
+#define IN4 26
+#define IN3 27
+#define IN2 33
+#define IN1 32
+// #define RENA 13
+ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
-/* 
- * To be implemented:
- * - Collecting data and applying values to software compensation code for intertia imbalance of the wheels
- * - Split up PID code for better debugging. (include prints etc.)
- * 
- * Last changed:
- * - Implementation of software compensation code for intertia imbalance of the wheels (no callibration values added yet)
- * - Changed current priority assignments for each tasks (I was under the wrong assumption that a higher numerical value means a more critical priority)
- * 
- * To be tested:
- * - Task priority assignment test
- * - Pin assignment and open loop wheel motion on robot
- * - Communication of PS4 button presses through I2C
- * 
-*/
-
-// Global tasks names
-const char* task1Name = "Task - PS4 Sampling";      // PS4 Sampling
-const char* task2Name = "Task - Update Encoders";   // Update Wheel Encoders
-const char* task3Name = "Task - Actuate Motors";    // Actuate Wheel Motors
-const char* task4Name = "Task - WebSocket Handler"; // WebSocket Handler
-const char* task5Name = "Task - Send WiFi Data";    // Send Data to WiFi
-const char* task6Name = "Task - Send I2C Data";     // Send Data to I2C
-
-// Global class variable for calculating CPU Utilization for each task
-TaskCpuUtilization UtilPs4Sampling      (PS4_SAMPLING_PERIOD,           task1Name);
-TaskCpuUtilization UtilUpdateEncoders   (MOTOR_WHEEL_ENCODER_PERIOD,    task2Name);
-TaskCpuUtilization UtilActuateMotors    (MOTOR_WHEEL_ACTUATION_PERIOD,  task3Name);
-TaskCpuUtilization UtilWebSocketHandler (WEBSOCKET_HANDLING_PERIOD,     task4Name);
-TaskCpuUtilization UtilSendToWifi       (SEND_TO_WIFI_PERIOD,           task5Name);
-TaskCpuUtilization UtilSendToI2c        (SEND_TO_I2C_PERIOD,            task6Name);
-
-// Function prototypes for setup functions
-void websocket_setup();
-void ps4_setup();
-
-// Function prototypes for tasks
-void task_ps4_sampling      (void *pvParameters);
-void task_update_encoders   (void *pvParameters);
-void task_actuate_motors    (void *pvParameters);
-void task_websocket_handler (void *pvParameters);
-void task_send_to_wifi      (void *pvParameters);
-void task_send_to_i2c       (void *pvParameters);
-
-// Task Handles
-TaskHandle_t xTask_Ps4Sampling;
-TaskHandle_t xTask_UpdateEncoders;
-TaskHandle_t xTask_ActuateMotors;
-TaskHandle_t xTask_WebsocketHandler;
-TaskHandle_t xTask_SendToWiFi;
-TaskHandle_t xTask_SendToI2C;
-
-// Semaphore Handles
-SemaphoreHandle_t xMutex_wheelMotorPs4Inputs;
-SemaphoreHandle_t bsem_;
-
-// Queue Handles
-QueueHandle_t xQueue_wifi;
-QueueHandle_t xQueue_i2c;
-
-// WebSocket Server Setup
-void websocket_setup() {
-    WiFi.begin(ssid, password);
-    // Wait for the ESP32 to connect to Wi-Fi
-    while (WiFi.status() != WL_CONNECTED) {
-        static int retryCount = 0;
-        Serial.printf("Connecting to WiFi (%s) ...\n", ssid);
-        retryCount++;
-        if (retryCount >= 10) {
-            Serial.println("Can't connect to WiFi. Restarting.");
-            ESP.restart(); // Restart ESP32 if can't connect to WiFi after 10 tries
-        }
-        delay(500);
-    }
-    Serial.printf("Connected to WiFi!\nESP32 IP Address: ");
-    Serial.print(WiFi.localIP());
-    Serial.printf(":81\n");
-
-    // Start the WebSocket server
-    server.listen(81); // Listen on port 81
-    Serial.println("WebSocket server started!");
-}
-
-// PS4 Controller Connection Setup
-void ps4_setup() {
-    // Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
-    // const uint8_t* addr = BP32.localBdAddress();
-    // Serial.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-    // Setup the Bluepad32 callbacks
-    BP32.setup(&onConnectedController, &onDisconnectedController);
-    // Wait for ps4 Connection
-    bool dataUpdated = BP32.update();
-    // while (!dataUpdated) {
-    //     dataUpdated = BP32.update();
-    //     delay(250);
-    // }
-}
-
-void setup(){
-    Serial.begin(115200);
-    Serial.printf("Initializing...\n");
-    
-    // Encoder setup
-	ESP32Encoder::useInternalWeakPullResistors = puType::up;    // Enable the weak pull up resistors
-
-    // Setup
-    websocket_setup();  // WebSocket Server Setup
-    ps4_setup();        // PS4 Controller Setup
-    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);  // Initialize I2C
-    
-    // Task creation result variables
-    BaseType_t taskCreation_ps4Sampling;
-    BaseType_t taskCreation_UpdateEncoders;
-    BaseType_t taskCreation_ActuateMotors;
-    BaseType_t taskCreation_WebsocketHandler;
-    BaseType_t taskCreation_SendToWiFi;
-    BaseType_t taskCreation_SendToI2C;
-
-    bool creationStatus = 1; // Creation status flag
-    // Create Mutex (Mutual Exclusion Semaphore) for global variables
-    // Note: These semaphores are declared in Globals.h so that they can be accessed in any file.
-    xMutex_wheelMotorPs4Inputs = xSemaphoreCreateMutex();        // Mutex for global var ps4StickOutputs
-    bsem_ = xSemaphoreCreateBinary(); // Binary semaphore to indicate that new data is acquired in 
-    // Check creation status for each semaphore/mutex
-    check_sem_creation(creationStatus, xMutex_wheelMotorPs4Inputs, "Mutex - PS4 Stick Outputs");
-    check_sem_creation(creationStatus, bsem_, "Binary Semaphore - Placeholder");
-
-    // Create queues
-    // Note: These queues are declared in Globals.h so that they can be accessed in any file.
-    xQueue_wifi = xQueueCreate(10, BUFFER_SIZE);  // Create a queue for WiFi messages to be sent
-    xQueue_i2c = xQueueCreate(10, sizeof(uint8_t));  // Create a queue for I2C messages to be sent
-    // Check creation status for each queue
-    check_queue_creation(creationStatus, xQueue_wifi, "Queue - Send to WiFi");
-    check_queue_creation(creationStatus, xQueue_i2c, "Queue - Send to I2C");
-
-    // Create tasks
-    // Arguments: Task function, Task name, Stack size (bytes), Parameters, Priority (lower numerical value means a more critical priority), Task handle
-    taskCreation_ps4Sampling        = xTaskCreate(task_ps4_sampling,        "Task - PS4 Sampling",      4096, NULL, 7, &xTask_Ps4Sampling);
-    taskCreation_UpdateEncoders     = xTaskCreate(task_update_encoders,     "Task - Update Encoders",   2048, NULL, 6, &xTask_UpdateEncoders);
-    taskCreation_ActuateMotors      = xTaskCreate(task_actuate_motors,      "Task - Actuate Motors",    4096, NULL, 5, &xTask_ActuateMotors);
-    taskCreation_WebsocketHandler   = xTaskCreate(task_websocket_handler,   "Task - WebSocket Handler", 3072, NULL, 15, &xTask_WebsocketHandler);
-    taskCreation_SendToWiFi         = xTaskCreate(task_send_to_wifi,        "Task - Send Data",         2048, NULL, 14, &xTask_SendToWiFi);
-    taskCreation_SendToI2C          = xTaskCreate(task_send_to_i2c,         "Task - Send I2C Data",     2048, NULL, 15, &xTask_SendToI2C);
-
-    // Check creation status for each task
-    check_task_creation(creationStatus, taskCreation_ps4Sampling,       task1Name);
-    check_task_creation(creationStatus, taskCreation_UpdateEncoders,    task2Name);
-    check_task_creation(creationStatus, taskCreation_ActuateMotors,     task3Name);
-    check_task_creation(creationStatus, taskCreation_WebsocketHandler,  task4Name);
-    check_task_creation(creationStatus, taskCreation_SendToWiFi,        task5Name);
-    check_task_creation(creationStatus, taskCreation_SendToI2C,         task6Name);
-
-    // If any of the semaphore/mutex and queue has failed to create, exit
-    if (creationStatus == 0) {
-        Serial.printf("Exiting program.\n");
-        stop_program();
+// This callback gets called any time a new gamepad is connected.
+// Up to 4 gamepads can be connected at the same time.
+void onConnectedController(ControllerPtr ctl) {
+  bool foundEmptySlot = false;
+  for (int i = 0; i < BP32_MAX_GAMEPADS; i++) { 
+    if (myControllers[i] == nullptr) {
+      Serial.printf("CALLBACK: Controller is connected, index=%d\n", i);
+      // Additionally, you can get certain gamepad properties like:
+      // Model, VID, PID, BTAddr, flags, etc.
+      ControllerProperties properties = ctl->getProperties();
+      Serial.printf("Controller model: %s, VID=0x%04x, PID=0x%04x\n", ctl->getModelName().c_str(), properties.vendor_id, properties.product_id);
+      myControllers[i] = ctl;
+      foundEmptySlot = true;
+      break;
+      }
     }
 
-    // Display blinking LED to indicate start of program.
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, HIGH);
-    Serial.println("Starting program.");
-    vTaskDelay(pdMS_TO_TICKS(500));
-    digitalWrite(LED_PIN, LOW);
-
-    // Check free stack of each tasks
-    #if PRINT_FREE_STACK_ON_EACH_TASKS
-    vTaskDelay(pdMS_TO_TICKS(4000)); // delay to let tasks run before checking free stack on each tasks
-    print_free_stack(xTask_Ps4Sampling, task1Name);
-    print_free_stack(xTask_UpdateEncoders, task2Name);
-    print_free_stack(xTask_ActuateMotors, task3Name);
-    print_free_stack(xTask_WebsocketHandler, task4Name);
-    print_free_stack(xTask_SendToWiFi, task5Name);
-    print_free_stack(xTask_SendToI2C, task6Name);
-    Serial.printf("Free heap size: %d bytes\n", esp_get_free_heap_size());  
-    Serial.printf("Minimum free heap ever: %d bytes\n", esp_get_minimum_free_heap_size()); 
-    #endif
+    if (!foundEmptySlot) {
+      Serial.println("CALLBACK: Controller connected, but could not found empty slot");
+    }
 }
 
-// Loop is also treated as a task. Use it to get CPU utilization.
+void onDisconnectedController(ControllerPtr ctl) {
+  bool foundController = false;
+
+  for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
+    if (myControllers[i] == ctl) {
+      Serial.printf("CALLBACK: Controller disconnected from index=%d\n", i);
+      myControllers[i] = nullptr;
+      foundController = true;
+      break;
+    }
+  }
+
+    if (!foundController) {
+      Serial.println("CALLBACK: Controller disconnected, but not found in myControllers");
+    }
+}
+
+// ========= SEE CONTROLLER VALUES IN SERIAL MONITOR ========= //
+
+void dumpGamepad(ControllerPtr ctl) {
+  Serial.printf(
+  "idx=%d, dpad: 0x%02x, buttons: 0x%04x, axis L: %4d, %4d, axis R: %4d, %4d, brake: %4d, throttle: %4d, "
+  "misc: 0x%02x, gyro x:%6d y:%6d z:%6d, accel x:%6d y:%6d z:%6d\n",
+  ctl->index(),        // Controller Index
+  ctl->dpad(),         // D-pad
+  ctl->buttons(),      // bitmask of pressed buttons
+  ctl->axisX(),        // (-511 - 512) left X Axis
+  ctl->axisY(),        // (-511 - 512) left Y axis
+  ctl->axisRX(),       // (-511 - 512) right X axis
+  ctl->axisRY(),       // (-511 - 512) right Y axis
+  ctl->brake(),        // (0 - 1023): brake button
+  ctl->throttle(),     // (0 - 1023): throttle (AKA gas) button
+  ctl->miscButtons(),  // bitmask of pressed "misc" buttons
+  ctl->gyroX(),        // Gyro X
+  ctl->gyroY(),        // Gyro Y
+  ctl->gyroZ(),        // Gyro Z
+  ctl->accelX(),       // Accelerometer X
+  ctl->accelY(),       // Accelerometer Y
+  ctl->accelZ()        // Accelerometer Z
+  );
+}
+
+// ========= GAME CONTROLLER ACTIONS SECTION ========= //
+
+void processGamepad(ControllerPtr ctl) {
+  // There are different ways to query whether a button is pressed.
+  // By query each button individually:
+  //  a(), b(), x(), y(), l1(), etc...
+ 
+  //== PS4 X button = 0x0001 ==//
+  if (ctl->buttons() == 0x0001) {
+    // code for when X button is pushed
+  }
+  if (ctl->buttons() != 0x0001) {
+    // code for when X button is released
+  }
+
+  //== PS4 Square button = 0x0004 ==//
+  if (ctl->buttons() == 0x0004) {
+    // code for when square button is pushed
+  }
+  if (ctl->buttons() != 0x0004) {
+  // code for when square button is released
+  }
+
+  //== PS4 Triangle button = 0x0008 ==//
+  if (ctl->buttons() == 0x0008) {
+    // code for when triangle button is pushed
+  }
+  if (ctl->buttons() != 0x0008) {
+    // code for when triangle button is released
+  }
+
+  //== PS4 Circle button = 0x0002 ==//
+  if (ctl->buttons() == 0x0002) {
+    // code for when circle button is pushed
+  }
+  if (ctl->buttons() != 0x0002) {
+    // code for when circle button is released
+  }
+
+  //== PS4 Dpad UP button = 0x01 ==//
+  if (ctl->buttons() == 0x01) {
+    // code for when dpad up button is pushed
+  }
+  if (ctl->buttons() != 0x01) {
+    // code for when dpad up button is released
+  }
+
+  //==PS4 Dpad DOWN button = 0x02==//
+  if (ctl->buttons() == 0x02) {
+    // code for when dpad down button is pushed
+  }
+  if (ctl->buttons() != 0x02) {
+    // code for when dpad down button is released
+  }
+
+  //== PS4 Dpad LEFT button = 0x08 ==//
+  if (ctl->buttons() == 0x08) {
+    // code for when dpad left button is pushed
+  }
+  if (ctl->buttons() != 0x08) {
+    // code for when dpad left button is released
+  }
+
+  //== PS4 Dpad RIGHT button = 0x04 ==//
+  if (ctl->buttons() == 0x04) {
+    // code for when dpad right button is pushed
+  }
+  if (ctl->buttons() != 0x04) {
+    // code for when dpad right button is released
+  }
+
+  //== PS4 R1 trigger button = 0x0020 ==//
+  if (ctl->buttons() == 0x0020) {
+    // code for when R1 button is pushed
+    //motorControl(true,100);
+    
+  }
+  if (ctl->buttons() != 0x0020) {
+    // code for when R1 button is released
+    
+  }
+
+  //== PS4 R2 trigger button = 0x0080 ==//
+  if (ctl->buttons() == 0x0080) {
+    // code for when R2 button is pushed
+    motorControl(true,8000);
+    
+  }
+  if (ctl->buttons() != 0x0080) {
+    // code for when R2 button is released
+  }
+
+  //== PS4 L1 trigger button = 0x0010 ==//
+  if (ctl->buttons() == 0x0010) {
+    // code for when L1 button is pushed
+    //motorControl(false,100);
+  }
+  if (ctl->buttons() != 0x0010) {
+    // code for when L1 button is released
+  }
+
+  //== PS4 L2 trigger button = 0x0040 ==//
+  if (ctl->buttons() == 0x0040) {
+    // code for when L2 button is pushed
+    motorControl(false,5800);
+  }
+  if (ctl->buttons() != 0x0040) {
+    // code for when L2 button is released
+  }
+
+  //== LEFT JOYSTICK - UP ==//
+  if (ctl->axisY() <= -25) {
+    // code for when left joystick is pushed up
+    }
+
+  //== LEFT JOYSTICK - DOWN ==//
+  if (ctl->axisY() >= 25) {
+    // code for when left joystick is pushed down
+  }
+
+  //== LEFT JOYSTICK - LEFT ==//
+  if (ctl->axisX() <= -25) {
+    // code for when left joystick is pushed left
+  }
+
+  //== LEFT JOYSTICK - RIGHT ==//
+  if (ctl->axisX() >= 25) {
+    // code for when left joystick is pushed right
+  }
+
+  //== LEFT JOYSTICK DEADZONE ==//
+  if (ctl->axisY() > -25 && ctl->axisY() < 25 && ctl->axisX() > -25 && ctl->axisX() < 25) {
+    // code for when left joystick is at idle
+  }
+
+  //== RIGHT JOYSTICK - X AXIS ==//
+  if (ctl->axisRX()) {
+    // code for when right joystick moves along x-axis
+  }
+
+  //== RIGHT JOYSTICK - Y AXIS ==//
+  if (ctl->axisRY()) {
+  // code for when right joystick moves along y-axis
+  }
+  dumpGamepad(ctl);
+}
+
+void processControllers() {
+  for (auto myController : myControllers) {
+    if (myController && myController->isConnected() && myController->hasData()) {
+      if (myController->isGamepad()) {
+         processGamepad(myController);
+      }
+      else {
+        Serial.println("Unsupported controller");
+      }
+    }
+  }
+}
+
+
+
+// Function to control motor direction and speed
+void motorControl(bool forward,int time) {
+  if (forward) {
+    digitalWrite(IN2, HIGH);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+  } else {
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, HIGH);
+  }
+  //ledcWrite(0, speed);
+  delay(time);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  //ledcWrite(0, 0); 
+  // Set speed (0-255)
+  
+}
+
+
+// Arduino setup function. Runs in CPU 1
+void setup() {
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  /*ledcAttachPin(RENA, 0); // Attach ENA to PWM channel 0
+  ledcAttachPin(LENA, 0); // Attach ENA to PWM channel 0
+  ledcSetup(0, 5000, 8); // 5 kHz frequency, 8-bit resolution*/
+
+  Serial.begin(115200);
+  Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
+  const uint8_t* addr = BP32.localBdAddress();
+  Serial.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+
+
+  // Setup the Bluepad32 callbacks
+  BP32.setup(&onConnectedController, &onDisconnectedController);
+
+  // "forgetBluetoothKeys()" should be called when the user performs
+  // a "device factory reset", or similar.
+  // Calling "forgetBluetoothKeys" in setup() just as an example.
+    // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
+  // But it might also fix some connection / re-connection issues.
+  BP32.forgetBluetoothKeys();
+
+  // Enables mouse / touchpad support for gamepads that support them.
+  // When enabled, controllers like DualSense and DualShock4 generate two connected devices:
+  // - First one: the gamepad
+  // - Second one, which is a "virtual device", is a mouse.
+  // By default, it is disabled.
+  BP32.enableVirtualDevice(false);
+}
+
+// Arduino loop function. Runs in CPU 1.
 void loop() {
-    #if PRINT_CPU_UTILIZATION
-    UtilPs4Sampling.send_util_to_wifi();
-    UtilUpdateEncoders.send_util_to_wifi();
-    UtilActuateMotors.send_util_to_wifi();
-    UtilWebSocketHandler.send_util_to_wifi();
-    UtilSendToWifi.send_util_to_wifi();
-    UtilSendToI2c.send_util_to_wifi();
-    #endif
-    vTaskDelay(pdMS_TO_TICKS(CPU_UTIL_CALCULATION_PERIOD));
-}
+  // This call fetches all the controllers' data.
+  // Call this function in your main loop.
+  bool dataUpdated = BP32.update();
+  if (dataUpdated)
+    processControllers();
 
-// Task - Get input from PS4
-void task_ps4_sampling(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(PS4_SAMPLING_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    bool dataUpdated;
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilPs4Sampling.set_start_time();
+    // The main loop must have some kind of "yield to lower priority task" event.
+    // Otherwise, the watchdog will get triggered.
+    // If your main loop doesn't have one, just add a simple `vTaskDelay(1)`.
+    // Detailed info here:
+    // https://stackoverflow.com/questions/66278271/task-watchdog-got-triggered-the-tasks-did-not-reset-the-watchdog-in-time
 
-        // Get new PS4 data
-        dataUpdated = BP32.update();
-        if (dataUpdated) processControllers();
-        // Calculate motor input based on ps4 analog stick and modifies wheelMotorps4Inputs. Does not include ramp function
-        ps4_input_to_wheel_velocity();
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilPs4Sampling.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// Task - Get encoder count from all motors//
-void task_update_encoders(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ENCODER_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilUpdateEncoders.set_start_time();
-
-        // Update tick velocity for each wheel motors
-        UL_Motor.update_tick_velocity();
-        UR_Motor.update_tick_velocity();
-        BL_Motor.update_tick_velocity();
-        BR_Motor.update_tick_velocity();
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilUpdateEncoders.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// Task - Actuate all motors //
-void task_actuate_motors(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(MOTOR_WHEEL_ACTUATION_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilActuateMotors.set_start_time();
-
-        // TODO: Need PWM to speed mapping
-        // Calculate PD PWM output of each wheel's motor
-        // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
-        // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
-        // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
-        // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
-        // Actuate Wheel Motor
-        actuate_motor_wheels();
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilActuateMotors.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// WebSocket Handling //
-void task_websocket_handler(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(WEBSOCKET_HANDLING_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilWebSocketHandler.set_start_time();
-
-        // Accept new WebSocket client connections
-        if (!clientConnected) {
-            auto newClient = server.accept();
-            if (newClient.available()) {
-                Serial.println("New WebSocket client connected!");
-                client = newClient;
-                clientConnected = true;
-            }
-        }
-        // Handle client disconnection
-        if (clientConnected && !client.available()) {
-            Serial.println("Client disconnected!");
-            client.close();
-            clientConnected = false;
-        }
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilWebSocketHandler.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// Task to print messages in serial monitor (to be changed to WiFi sending)
-void task_send_to_wifi(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(SEND_TO_WIFI_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    char message [128];
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilSendToWifi.set_start_time();
-
-        // Wait until there is data in the WiFi queue
-        if (xQueueReceive(xQueue_wifi, &message, portMAX_DELAY)) {
-            // If client is connected to WebSocket server
-            if (clientConnected && client.available())
-                client.send(message);  // Send the received message to WebSocket server (Important: make sure 'message' is null-terminated)
-        }
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilSendToWifi.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// Task to send data to other ESP32 through I2C
-void task_send_to_i2c(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(SEND_TO_I2C_PERIOD); // Set task running frequency
-    TickType_t xLastWakeTime = xTaskGetTickCount();   // Initialize last wake time
-    I2cDataPacket packet;
-    for (;;) {
-        // Set task start time (to calculate for CPU Utilization)
-        UtilSendToI2c.set_start_time();
-
-        // Wait until there is data in the I2C queue
-        if (xQueueReceive(xQueue_i2c, &packet, portMAX_DELAY) == pdPASS) {
-            Wire.beginTransmission(packet.slaveAddress);    // Set to send to specified slave
-            Wire.write(packet.message);    // Send data
-            if (Wire.endTransmission() == 0) {
-                Serial.printf("Data sent successfully to slave.\n");
-            } 
-            else {
-                Serial.printf("Failed to send data.\n");
-            }
-        }
-
-        // Set task end time (to calculate for CPU Utilization)
-        UtilSendToI2c.set_end_time();
-        // Delay until the next execution time
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
+    // vTaskDelay(1);
+  delay(150);
 }
