@@ -20,7 +20,7 @@ void Encoder::begin() {
     attachInterrupt(digitalPinToInterrupt(encoderPin), encoderISR, RISING);
     lastEdgeTime = micros();
     Lasttime=millis();
-    interval=500;
+    
 }
 
 float Encoder::getRPM() {
@@ -29,12 +29,13 @@ float Encoder::getRPM() {
     float rpm = 0;
 
     if (currentTime-Lasttime>=interval){
-    
+    portENTER_CRITICAL(&mux);
     currentCount = count;
     count = 0;
     rpm = (float)((((float)currentCount / slotsPerRev) * 60.0 )/((float)interval/1000));
-
     Lasttime = currentTime;
+    portEXIT_CRITICAL(&mux);
+
     }
     return rpm;
 }
@@ -44,7 +45,7 @@ void IRAM_ATTR Encoder::encoderISR() {
 
     if (delta >= debounceTime) {
         count++;
-        unsigned long newDebounce = delta / 2;
+        unsigned long newDebounce = delta * 4 / 5;
         
         // Constrain debounce time
         if (newDebounce < MIN_DEBOUNCE) {

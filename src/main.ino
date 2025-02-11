@@ -6,8 +6,8 @@
 #define PWM_PIN 26
 #define ENCODER_PIN 27
 #define SETPOINT_TEST 4 
-Encoder encoder(ENCODER_PIN,2,500); 
-PID_Controller PID_stuffs(1,0,0.8, 500, 0,2750);
+Encoder encoder(ENCODER_PIN,6,100,3000UL,8000UL); 
+PID_Controller PID_stuffs(2,0,0.5, 100, 0,2750);
 float cur_rpm=0;
 int pwm_set_val=0;
 double PID_out=0;
@@ -47,7 +47,7 @@ void loop() {
   Serial.println(pwm_set_val);
 
   analogWrite(PWM_PIN,floorf(pwm_set_val));
-  delay(500);
+  delay(100);
 
 
 
