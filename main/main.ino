@@ -1,10 +1,38 @@
 #include <Bluepad32.h>
-// #define LENA 25
-#define IN4 26
-#define IN3 27
-#define IN2 33
-#define IN1 32
-// #define RENA 13
+
+/********** define pins **********/
+
+// Pin definitions for Motor 1
+#define MOTOR1_RPWM 32  // PWM signal for forward direction
+#define MOTOR1_LPWM 33  // PWM signal for reverse direction
+
+// Pin definitions for Motor 2
+#define MOTOR2_RPWM 26  // PWM signal for forward direction
+#define MOTOR2_LPWM 27  // PWM signal for reverse direction
+
+// PWM properties
+#define PWM_FREQUENCY 8000
+#define PWM_RESOLUTION 8
+#define PWM_MAX 255
+
+// PWM channels for net
+#define PWM_CHANNEL_M1_RPWM 0
+#define PWM_CHANNEL_M1_LPWM 1
+#define PWM_CHANNEL_M2_RPWM 2
+#define PWM_CHANNEL_M2_LPWM 3
+
+// Pin definitions for Limit switch
+#define LIMIT_SWITCH_1 25
+#define LIMIT_SWITCH_2 14
+
+// Pin definitiosn for tilting mechanism
+#define TILTING_MOTOR_1 19
+#define TILTING_MOTOR_2 18
+
+// PWM channels for for tilting mechanism
+#define PWM_CHANNEL_TILTING_LPWM 4
+#define PWM_CHANNEL_TILTING_RPWM 5
+
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
 // This callback gets called any time a new gamepad is connected.
@@ -148,7 +176,7 @@ void processGamepad(ControllerPtr ctl) {
     //motorControl(true,100);
     
   }
-  if (ctl->buttons() != 0x0020) {
+  if (ctl->buttons() != 0x0020 and ctl->buttons() != 0x0010) {
     // code for when R1 button is released
     
   }
@@ -156,7 +184,7 @@ void processGamepad(ControllerPtr ctl) {
   //== PS4 R2 trigger button = 0x0080 ==//
   if (ctl->buttons() == 0x0080) {
     // code for when R2 button is pushed
-    motorControl(true,8000);
+    netControl(true,2200,255);
     
   }
   if (ctl->buttons() != 0x0080) {
@@ -168,14 +196,11 @@ void processGamepad(ControllerPtr ctl) {
     // code for when L1 button is pushed
     //motorControl(false,100);
   }
-  if (ctl->buttons() != 0x0010) {
-    // code for when L1 button is released
-  }
 
   //== PS4 L2 trigger button = 0x0040 ==//
   if (ctl->buttons() == 0x0040) {
     // code for when L2 button is pushed
-    motorControl(false,5800);
+    netControl(false,2100,255);
   }
   if (ctl->buttons() != 0x0040) {
     // code for when L2 button is released
@@ -231,47 +256,66 @@ void processControllers() {
   }
 }
 
-
-
 // Function to control motor direction and speed
-void motorControl(bool forward,int time) {
-  if (forward) {
-    digitalWrite(IN2, HIGH);
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN3, HIGH);
-    digitalWrite(IN4, LOW);
-  } else {
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, HIGH);
+void netControl(bool forward, int time, int speed)
+{
+  if (forward)
+  {
+    // Forward direction
+    ledcWrite(PWM_CHANNEL_M1_RPWM, speed);
+    ledcWrite(PWM_CHANNEL_M1_LPWM, 0);
+    ledcWrite(PWM_CHANNEL_M2_RPWM, speed);
+    ledcWrite(PWM_CHANNEL_M2_LPWM, 0);
   }
-  //ledcWrite(0, speed);
+  else
+  {
+    // Reverse direction
+    if(digitalRead(LIMIT_SWITCH_1) == HIGH)
+    {
+      ledcWrite(PWM_CHANNEL_M1_RPWM, 0);
+      ledcWrite(PWM_CHANNEL_M1_LPWM, speed);
+    }
+    if(digitalRead(LIMIT_SWITCH_2) == HIGH)
+    {
+      ledcWrite(PWM_CHANNEL_M2_RPWM, 0);
+      ledcWrite(PWM_CHANNEL_M2_LPWM, speed);
+     }
+  }
   delay(time);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
-  //ledcWrite(0, 0); 
-  // Set speed (0-255)
-  
+  ledcWrite(PWM_CHANNEL_M1_RPWM, 0);
+  ledcWrite(PWM_CHANNEL_M1_LPWM, 0);
+}
+
+void tilting()
+{
+
+  delay(100);
 }
 
 
 // Arduino setup function. Runs in CPU 1
 void setup() {
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
+  // Configure PWM for Motor 1
+  ledcSetup(PWM_CHANNEL_M1_RPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_M1_LPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(MOTOR1_RPWM, PWM_CHANNEL_M1_RPWM);
+  ledcAttachPin(MOTOR1_LPWM, PWM_CHANNEL_M1_LPWM);
+  
+  // Configure PWM for Motor 2
+  ledcSetup(PWM_CHANNEL_M2_RPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_M2_LPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(MOTOR2_RPWM, PWM_CHANNEL_M2_RPWM);
+  ledcAttachPin(MOTOR2_LPWM, PWM_CHANNEL_M2_LPWM);
 
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
-  /*ledcAttachPin(RENA, 0); // Attach ENA to PWM channel 0
-  ledcAttachPin(LENA, 0); // Attach ENA to PWM channel 0
-  ledcSetup(0, 5000, 8); // 5 kHz frequency, 8-bit resolution*/
+  // Limit switch
+  pinMode(LIMIT_SWITCH_1, INPUT_PULLUP);
+  pinMode(LIMIT_SWITCH_2, INPUT_PULLUP);
+
+  // Tilting mechanism
+  ledcSetup(PWM_CHANNEL_TILTING_LPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_TILTING_RPWM, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(TILTING_MOTOR_1, PWM_CHANNEL_TILTING_LPWM);
+  ledcAttachPin(TILTING_MOTOR_2, PWM_CHANNEL_TILTING_RPWM);
 
   Serial.begin(115200);
   Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
@@ -285,7 +329,7 @@ void setup() {
   // "forgetBluetoothKeys()" should be called when the user performs
   // a "device factory reset", or similar.
   // Calling "forgetBluetoothKeys" in setup() just as an example.
-    // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
+  // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
   // But it might also fix some connection / re-connection issues.
   BP32.forgetBluetoothKeys();
 
@@ -302,6 +346,7 @@ void loop() {
   // This call fetches all the controllers' data.
   // Call this function in your main loop.
   bool dataUpdated = BP32.update();
+
   if (dataUpdated)
     processControllers();
 
@@ -311,6 +356,6 @@ void loop() {
     // Detailed info here:
     // https://stackoverflow.com/questions/66278271/task-watchdog-got-triggered-the-tasks-did-not-reset-the-watchdog-in-time
 
-    // vTaskDelay(1);
-  delay(150);
+  vTaskDelay(1);
+  delay(50);
 }

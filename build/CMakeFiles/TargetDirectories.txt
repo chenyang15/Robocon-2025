@@ -1,0 +1,2 @@
+D:/uni/Roboclub/Robocon-2025/build/CMakeFiles/edit_cache.dir
+D:/uni/Roboclub/Robocon-2025/build/CMakeFiles/rebuild_cache.dir
