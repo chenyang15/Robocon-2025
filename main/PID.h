@@ -25,7 +25,10 @@ public:
     inline void setSetpoint(double target);
 
     // Compute the PID output
-    double compute(double feedforwardInput, double currentValue);
+    double compute(double currentValue);
+
+    // Clamp value to outputMin and outputMax
+    double clamp_output(double unclampedValue);
 
     // Reset the PID controller
     inline void reset();

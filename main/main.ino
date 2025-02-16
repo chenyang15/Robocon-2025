@@ -94,13 +94,10 @@ void websocket_setup() {
 
 // PS4 Controller Connection Setup
 void ps4_setup() {
-    // Serial.printf("Firmware: %s\n", BP32.firmwareVersion());
-    // const uint8_t* addr = BP32.localBdAddress();
-    // Serial.printf("BD Addr: %2X:%2X:%2X:%2X:%2X:%2X\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
     // Setup the Bluepad32 callbacks
     BP32.setup(&onConnectedController, &onDisconnectedController);
     // Wait for ps4 Connection
-    bool dataUpdated = BP32.update();
+    // bool dataUpdated = BP32.update();
     // while (!dataUpdated) {
     //     dataUpdated = BP32.update();
     //     delay(250);
@@ -110,7 +107,6 @@ void ps4_setup() {
 void setup(){
     Serial.begin(115200);
     Serial.printf("Initializing...\n");
-    
     // Encoder setup
 	ESP32Encoder::useInternalWeakPullResistors = puType::up;    // Enable the weak pull up resistors
 
@@ -127,7 +123,7 @@ void setup(){
     BaseType_t taskCreation_SendToWiFi;
     BaseType_t taskCreation_SendToI2C;
 
-    bool creationStatus = 1; // Creation status flag
+    bool creationStatus = 1; // Creation status flag for all FreeRTOS kernel objects
     // Create Mutex (Mutual Exclusion Semaphore) for global variables
     // Note: These semaphores are declared in Globals.h so that they can be accessed in any file.
     xMutex_wheelMotorPs4Inputs = xSemaphoreCreateMutex();        // Mutex for global var ps4StickOutputs
@@ -152,7 +148,6 @@ void setup(){
     taskCreation_WebsocketHandler   = xTaskCreate(task_websocket_handler,   "Task - WebSocket Handler", 3072, NULL, 2, &xTask_WebsocketHandler);
     taskCreation_SendToWiFi         = xTaskCreate(task_send_to_wifi,        "Task - Send Data",         2048, NULL, 3, &xTask_SendToWiFi);
     taskCreation_SendToI2C          = xTaskCreate(task_send_to_i2c,         "Task - Send I2C Data",     2048, NULL, 2, &xTask_SendToI2C);
-
     // Check creation status for each task
     check_task_creation(creationStatus, taskCreation_ps4Sampling,       task1Name);
     check_task_creation(creationStatus, taskCreation_UpdateEncoders,    task2Name);
@@ -176,7 +171,7 @@ void setup(){
 
     // Check free stack of each tasks
     #if PRINT_FREE_STACK_ON_EACH_TASKS
-    vTaskDelay(pdMS_TO_TICKS(4000)); // delay to let tasks run before checking free stack on each tasks
+    vTaskDelay(pdMS_TO_TICKS(4000)); // delay to let tasks run before printing free stack on each tasks
     print_free_stack(xTask_Ps4Sampling, task1Name);
     print_free_stack(xTask_UpdateEncoders, task2Name);
     print_free_stack(xTask_ActuateMotors, task3Name);
@@ -252,12 +247,6 @@ void task_actuate_motors(void *pvParameters) {
         // Set task start time (to calculate for CPU Utilization)
         UtilActuateMotors.set_start_time();
 
-        // TODO: Need PWM to speed mapping
-        // Calculate PD PWM output of each wheel's motor
-        // wheelMotorInputs[0] = UL_Motor.PID.compute(wheelMotorInputs[0], UL_Motor.ticksPerSample);
-        // wheelMotorInputs[1] = UR_Motor.PID.compute(wheelMotorInputs[1], UR_Motor.ticksPerSample);
-        // wheelMotorInputs[2] = BL_Motor.PID.compute(wheelMotorInputs[2], BL_Motor.ticksPerSample);
-        // wheelMotorInputs[3] = BR_Motor.PID.compute(wheelMotorInputs[3], BR_Motor.ticksPerSample);
         // Actuate Wheel Motor
         actuate_motor_wheels();
 
@@ -334,7 +323,7 @@ void task_send_to_i2c(void *pvParameters) {
         // Wait until there is data in the I2C queue
         if (xQueueReceive(xQueue_i2c, &packet, portMAX_DELAY) == pdPASS) {
             Wire.beginTransmission(packet.slaveAddress);    // Set to send to specified slave
-            Wire.write(packet.message);    // Send data
+            Wire.write( (uint8_t*) packet.message, strlen(packet.message) );    // Send data
             if (Wire.endTransmission() == 0) {
                 Serial.printf("Data sent successfully to slave.\n");
             } 

@@ -88,25 +88,24 @@ double Motor::input_shape_ramp(double rawInput) {
 void actuate_motor_wheels() {
     double shapedInputs[4] = {0, 0, 0, 0};
 
-    // Wait for mutex before modifying ps4StickInputs
+    // Wait for mutex before getting value from ps4StickInputs
     if (xSemaphoreTake(xMutex_wheelMotorPs4Inputs, portMAX_DELAY)) {
         // Apply input shaping (ramp function) to raw duty cycle inputs derived from PS4 inputs
         for (int i = 0; i < 4; ++i) {
             shapedInputs[i] = wheelMotors[i].input_shape_ramp(wheelMotorPs4Inputs[i]);
         }
-        xSemaphoreGive(xMutex_wheelMotorPs4Inputs);  // Release the mutex after modifying the variable
+        xSemaphoreGive(xMutex_wheelMotorPs4Inputs);  // Release the mutex after using the variable
     }
     
     // Apply PD to get closed loop input to motor
-    double pidOutput[4] = {0, 0, 0, 0};
+    double controlOutput[4] = {0, 0, 0, 0};
     for (int i = 0; i < 4; ++i) {
-        pidOutput[i] = shapedInputs[i]; // Get rid of this line and uncomment line below
-        // pidOutput[i] = wheelMotors[i].PID.compute(shapedInputs[i], wheelMotors[i].measuredPwmSpeed);
+        controlOutput[i] = shapedInputs[i] + wheelMotors[i].PID.compute(wheelMotors[i].measuredPwmSpeed);
     }
 
     // Actuate each motors using shaped feedforward inputs and PID output (summed)
     for (int i = 0; i < 4; ++i) {
-        wheelMotors[i].set_motor_PWM(pidOutput[i]);
+        wheelMotors[i].set_motor_PWM(controlOutput[i]);
     }
 
     // Printing in WiFi WebSocket //
@@ -131,7 +130,7 @@ void actuate_motor_wheels() {
         snprintf(
             formattedMessage,
             sizeof(formattedMessage),
-            "Wheels' PID and FF Duty Sum\t(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f)", pidOutput[0], pidOutput[1], pidOutput[2], pidOutput[3]
+            "Wheels' PID and FF Duty Sum\t(1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f)", controlOutput[0], controlOutput[1], controlOutput[2], controlOutput[3]
         );
         // Serial.print(formattedMessage2);
         // Send the formatted message to the queue
@@ -194,7 +193,7 @@ void delay_with_encoder(unsigned long delayMs, MotorWithEncoder (&wheelMotors)[4
     MotorWithEncoder& BL_Motor = wheelMotors[2];
     MotorWithEncoder& BR_Motor = wheelMotors[3];
 
-    int a, b, c, d;
+    int32_t a, b, c, d;
 
     unsigned long previousTime = millis();
     unsigned long endTime = previousTime + delayMs;

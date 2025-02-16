@@ -39,7 +39,8 @@ public:
     MotorWithEncoder(uint8_t pin1, uint8_t pwmPin, uint8_t encoderA, uint8_t encoderB, double maxPwmIncrement, double kp, double ki, double kd, double outputMin = -100.0, double outputMax = 100.0);
 
     PID_Controller PID;
-    double ticksPerSample;
+    int32_t ticksPerSample;
+    int32_t measuredPwmSpeed;
     
     inline int update_tick_velocity();
 

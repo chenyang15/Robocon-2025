@@ -2,6 +2,7 @@
 #include "Timing.h"
 #include "Globals.h"
 #include "RuntimePrints.h"
+#include "Utils.h"
 
 // Constructor
 TaskCpuUtilization::TaskCpuUtilization(uint32_t taskPeriod, const char* taskToMonitor)
@@ -14,21 +15,27 @@ TaskCpuUtilization::TaskCpuUtilization(uint32_t taskPeriod, const char* taskToMo
         // Check semaphore creation status
         if (xSemaphore_ExecutedTask == NULL)
             Serial.printf("Failed to create semaphore for CPU Utilization for '%s'", taskToMonitor);
+            stop_program();
     }
 
 inline void TaskCpuUtilization::set_start_time() {
+    #if PRINT_CPU_UTILIZATION
     // Set task start time
     startTime = micros();
+    #endif
 }
 
 inline void TaskCpuUtilization::set_end_time() {
+    #if PRINT_CPU_UTILIZATION
     // Set task end time
     endTime = micros();
-    // Give semaphore
+    // Give semaphore and allow cpu utilization to be calculated and sent to WiFi
     xSemaphoreGive(xSemaphore_ExecutedTask);
+    #endif
 }
 
 inline void TaskCpuUtilization::send_util_to_wifi(){
+    #if PRINT_CPU_UTILIZATION
     // Take semaphore
     if (xSemaphoreTake(xSemaphore_ExecutedTask, portMAX_DELAY)) {
         // Calculate task duration
@@ -47,4 +54,5 @@ inline void TaskCpuUtilization::send_util_to_wifi(){
         // Send the formatted message to the queue
         xQueueSend(xQueue_wifi, &formattedMessage, 0);
     }
+    #endif
 }

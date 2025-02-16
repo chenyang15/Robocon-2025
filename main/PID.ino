@@ -11,7 +11,7 @@ inline void PID_Controller::setSetpoint(double target) {
 }
 
 // Compute the PID output
-double PID_Controller::compute(double feedforwardInput, double currentValue) {
+double PID_Controller::compute(double currentValue) {
     // Calculate error
     double error = setpoint - currentValue;
 
@@ -35,12 +35,19 @@ double PID_Controller::compute(double feedforwardInput, double currentValue) {
     // Save the current error for the next derivative calculation
     previousError = error;
 
-    // Clamp output to min and max limits
-    if (feedforwardInput + output > outputMax) return outputMax;
-    if (feedforwardInput + output < outputMin) return outputMin;
-
-    return feedforwardInput + output;
+    return output;
 }
+
+// Clamp value to outputMin and outputMax
+double PID_Controller::clamp_output(double unclampedValue) {
+    if (unclampedValue > this->outputMax)
+        return this->outputMax;
+    else if (unclampedValue < this->outputMin)
+        return this->outputMin;
+    else
+        return unclampedValue;
+}
+
 
 // Reset the PID controller
 inline void PID_Controller::reset() {
