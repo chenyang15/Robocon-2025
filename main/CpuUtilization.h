@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "Globals.h"
 
 class TaskCpuUtilization {
 private:
@@ -8,7 +9,7 @@ private:
     uint32_t taskExecutionCount;    // Amount of times task has run within CPU_UTIL_CALCULATION_PERIOD
     double taskUtilization;         // Percentage time spent in task during CPU_UTIL_CALCULATION_PERIOD
     const char* taskToMonitor;
-    char formattedMessage[128];     // Buffer to store the message to send to WiFi
+    char formattedMessage[BUFFER_SIZE];     // Buffer to store the message to send to WiFi
     SemaphoreHandle_t xSemaphore_ExecutedTask;
 
 public:

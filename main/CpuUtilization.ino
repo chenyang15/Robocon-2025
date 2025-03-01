@@ -15,7 +15,7 @@ TaskCpuUtilization::TaskCpuUtilization(uint32_t taskPeriod, const char* taskToMo
         // Check semaphore creation status
         if (xSemaphore_ExecutedTask == NULL)
             Serial.printf("Failed to create semaphore for CPU Utilization for '%s'", taskToMonitor);
-            stop_program();
+            //stop_program(); // Will hang esp32 and not print any error messages.
     }
 
 inline void TaskCpuUtilization::set_start_time() {
@@ -37,7 +37,7 @@ inline void TaskCpuUtilization::set_end_time() {
 inline void TaskCpuUtilization::send_util_to_wifi(){
     #if PRINT_CPU_UTILIZATION
     // Take semaphore
-    if (xSemaphoreTake(xSemaphore_ExecutedTask, portMAX_DELAY)) {
+    if (xSemaphoreTake(xSemaphore_ExecutedTask, pdMS_TO_TICKS(500))) {
         // Calculate task duration
         taskDuration = (double) endTime - startTime;
         if (taskDuration > 0.0)
@@ -50,6 +50,15 @@ inline void TaskCpuUtilization::send_util_to_wifi(){
             formattedMessage, 
             sizeof(formattedMessage), 
             "%s:\t\t%lu\t%lu\t%.2f", taskToMonitor, endTime, startTime, taskUtilization
+        );
+        // Send the formatted message to the queue
+        xQueueSend(xQueue_wifi, &formattedMessage, 0);
+    }
+    else {
+        snprintf(
+            formattedMessage, 
+            sizeof(formattedMessage), 
+            "%s:\t\tCould not retrieve CPU Utilization", taskToMonitor
         );
         // Send the formatted message to the queue
         xQueueSend(xQueue_wifi, &formattedMessage, 0);

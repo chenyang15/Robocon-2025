@@ -17,7 +17,9 @@
  * 
  * Last changed:
  * - Implementation of software compensation code for intertia imbalance of the wheels (no callibration values added yet)
- * - Reverted current priority assignments for each tasks (I was under the wrong assumption that a lower numerical value means a more critical priority)
+ * - Bug Fix: Added timeout for sending cpu utilization through WiFi
+ * - Bug Fix: Removed for(;;) if initialization of semaphore has failed in CPU Utilization
+ * - Bug Fix: Changed websocket python script name to avoid circular reference
  * 
  * To be tested:
  * - Pin assignment and open loop wheel motion on robot
